@@ -20,10 +20,18 @@ class MovimientoResource extends JsonResource
             'id' => $this->id,
             'grupo' => $this->grupo,
             'tipo' => $this->tipo,
+            'sede' => $this->whenLoaded('sede', fn () => $this->sede?->only(['id', 'nombre'])),
+            // En un traslado, la otra sede.
+            'sede_relacionada' => $this->whenLoaded('sedeRelacionada', fn () => $this->sedeRelacionada?->only(['id', 'nombre'])),
             // Con signo: +10 entra, -2 sale.
             'cantidad' => $this->cantidad,
             'stock_resultante' => $this->stock_resultante,
             'costo_unitario' => $this->costo_unitario,
+            'lotes' => $this->whenLoaded('lotes', fn () => $this->lotes->map(fn ($lote) => [
+                'codigo' => $lote->codigo,
+                'vence_at' => $lote->vence_at?->toDateString(),
+                'cantidad' => (float) $lote->pivot->cantidad,
+            ])),
             'motivo' => $this->motivo,
             'motivo_label' => MovimientoInventario::etiquetaMotivo($this->motivo),
             'pedido_id' => $this->pedido_id,

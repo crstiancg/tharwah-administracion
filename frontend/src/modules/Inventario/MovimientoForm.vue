@@ -36,9 +36,39 @@
         />
       </div>
 
+      <div
+        v-if="tipo === 'traslado'"
+        class="movimiento-form__field movimiento-form__grow"
+      >
+        <label
+          :id="`${uid}-destino`"
+          class="movimiento-form__label"
+        >Sede de destino</label>
+        <q-select
+          v-model="form.movimiento.sede_destino_id"
+          :options="destinos"
+          :aria-labelledby="`${uid}-destino`"
+          :error="Boolean(form.errors[`${PATH}.sede_destino_id`])"
+          :error-message="form.errors[`${PATH}.sede_destino_id`]"
+          :placeholder="destinos.length ? 'Elegí la sede' : 'No hay otra sede activa'"
+          dense
+          outlined
+          hide-bottom-space
+          no-error-icon
+          emit-value
+          map-options
+          class="movimiento-form__control"
+          @update:model-value="form.validate(`${PATH}.sede_destino_id`)"
+        >
+          <template #prepend>
+            <q-icon name="local_shipping" />
+          </template>
+        </q-select>
+      </div>
+
       <AppTextField
         v-model="form.movimiento.referencia"
-        :label="tipo === 'entrada' ? 'Referencia (factura o guía)' : 'Referencia (opcional)'"
+        :label="tipo === 'entrada' ? 'Referencia (factura o guía)' : tipo === 'traslado' ? 'Guía de remisión (opcional)' : 'Referencia (opcional)'"
         icon="receipt"
         :placeholder="tipo === 'entrada' ? 'F001-2345' : ''"
         maxlength="60"
@@ -71,13 +101,13 @@
           <thead>
             <tr>
               <th scope="col">
-                Variante
+                Presentación
               </th>
               <th
                 scope="col"
                 class="text-right"
               >
-                Stock
+                Stock aquí
               </th>
               <th scope="col">
                 {{ tipo === 'ajuste' ? 'Contado' : 'Cantidad' }}
@@ -107,15 +137,16 @@
               <td>
                 <div class="movimiento-form__variante">
                   <span
+                    v-if="linea.variante.color"
                     class="movimiento-form__swatch"
-                    :style="{ background: linea.variante.color?.hexadecimal }"
+                    :style="{ background: linea.variante.color.hexadecimal }"
                   />
                   <div>
                     <div class="movimiento-form__producto">
                       {{ linea.variante.producto?.nombre }}
                     </div>
                     <div class="movimiento-form__detalle">
-                      Talla {{ linea.variante.talla }} · {{ linea.variante.color?.nombre }} ·
+                      {{ linea.variante.presentacion }}<template v-if="linea.variante.color"> · {{ linea.variante.color.nombre }}</template> ·
                       <span class="text-mono">{{ linea.variante.sku }}</span>
                     </div>
                   </div>
@@ -126,10 +157,63 @@
                 >
                   {{ errorDe(i, 'variante_id') }}
                 </p>
+
+                <!-- Lote: a cuál entra (entrada / sobrante de un conteo) o de
+                     cuál sale (salida; vacío = el que vence primero). -->
+                <div
+                  v-if="'lote' in linea"
+                  class="movimiento-form__lote"
+                >
+                  <q-input
+                    v-model="linea.lote"
+                    :aria-label="`Lote de ${linea.variante.sku}`"
+                    :placeholder="tipo === 'ajuste' ? 'Lote (si sobra)' : 'Lote'"
+                    maxlength="40"
+                    dense
+                    outlined
+                    hide-bottom-space
+                    no-error-icon
+                    :error="Boolean(errorDe(i, 'lote'))"
+                    :error-message="errorDe(i, 'lote')"
+                    class="movimiento-form__control movimiento-form__loteCodigo"
+                    @change="form.validate(`${PATH}.lineas.${i}.lote`)"
+                  />
+                  <q-input
+                    v-model="linea.vence_at"
+                    :aria-label="`Vencimiento del lote de ${linea.variante.sku}`"
+                    type="date"
+                    dense
+                    outlined
+                    hide-bottom-space
+                    no-error-icon
+                    :error="Boolean(errorDe(i, 'vence_at'))"
+                    :error-message="errorDe(i, 'vence_at')"
+                    class="movimiento-form__control"
+                    @change="form.validate(`${PATH}.lineas.${i}.vence_at`)"
+                  >
+                    <q-tooltip>Vencimiento</q-tooltip>
+                  </q-input>
+                </div>
+                <q-select
+                  v-else-if="'lote_id' in linea"
+                  v-model="linea.lote_id"
+                  :options="lotesDe(linea.variante_id)"
+                  :aria-label="`Lote de ${linea.variante.sku}`"
+                  placeholder="El que vence primero"
+                  clearable
+                  dense
+                  outlined
+                  emit-value
+                  map-options
+                  hide-bottom-space
+                  :error="Boolean(errorDe(i, 'lote_id'))"
+                  :error-message="errorDe(i, 'lote_id')"
+                  class="movimiento-form__control movimiento-form__lote"
+                />
               </td>
 
               <td class="text-right text-mono">
-                {{ linea.variante.stock }}
+                {{ formatearCantidad(linea.variante.stock) }} {{ linea.variante.unidad?.abreviatura }}
               </td>
 
               <td class="movimiento-form__numero">
@@ -139,7 +223,7 @@
                   :aria-label="`Stock contado de ${linea.variante.sku}`"
                   type="number"
                   min="0"
-                  step="1"
+                  :step="paso(linea)"
                   dense
                   outlined
                   hide-bottom-space
@@ -154,8 +238,8 @@
                   v-model="linea.cantidad"
                   :aria-label="`Cantidad de ${linea.variante.sku}`"
                   type="number"
-                  min="1"
-                  step="1"
+                  min="0"
+                  :step="paso(linea)"
                   dense
                   outlined
                   hide-bottom-space
@@ -193,7 +277,7 @@
               <td
                 :class="['text-right', 'text-mono', 'movimiento-form__queda', claseDiferencia(linea)]"
               >
-                {{ stockResultante(linea) ?? '—' }}
+                {{ formatearCantidad(stockResultante(linea)) ?? '—' }}
               </td>
 
               <td class="text-right">
@@ -217,14 +301,14 @@
         v-else
         class="movimiento-form__vacio"
       >
-        Buscá las variantes arriba para agregarlas al documento.
+        Buscá las presentaciones arriba para agregarlas al documento.
       </p>
 
       <div
         v-if="tipo === 'entrada' && form.movimiento.lineas.length"
         class="movimiento-form__total"
       >
-        <span>{{ unidades }} {{ unidades === 1 ? 'unidad' : 'unidades' }}</span>
+        <span>{{ form.movimiento.lineas.length }} {{ form.movimiento.lineas.length === 1 ? 'presentación' : 'presentaciones' }}</span>
         <strong class="text-mono">{{ formatearPrecio(totalCompra) || formatearPrecio(0) }}</strong>
       </div>
     </section>
@@ -247,9 +331,13 @@
 </template>
 
 <script setup>
-import { computed, useId } from 'vue'
+import { computed, onMounted, ref, useId } from 'vue'
 import { useForm } from 'laravel-precognition-vue'
 import AppTextField from '@/components/AppTextField.vue'
+import InventarioService from '@/services/InventarioService'
+import SedeService from '@/services/SedeService'
+import { useUserStore } from '@/stores/user-store'
+import { formatearCantidad } from '@/utils/cantidad'
 import { formatearPrecio } from '@/utils/moneda'
 import BuscadorVariante from './BuscadorVariante.vue'
 import formMovimiento, { nuevaLinea } from './FormMovimiento'
@@ -272,12 +360,52 @@ const config = computed(() => TIPOS[props.tipo])
 
 const form = useForm('post', `api/inventario/${TIPOS[props.tipo].endpoint}`, () => formMovimiento(props.tipo))
 
+// ── Traslado: las otras sedes activas ──
+const userStore = useUserStore()
+const sedes = ref([])
+const destinos = computed(() => sedes.value
+  .filter((s) => s.id !== userStore.sedeId)
+  .map((s) => ({ value: s.id, label: s.nombre })))
+
+onMounted(async () => {
+  if (props.tipo !== 'traslado') return
+  sedes.value = await SedeService.activas()
+  if (destinos.value.length === 1) form.movimiento.sede_destino_id = destinos.value[0].value
+})
+
+// Las unidades fraccionables (kg, m) aceptan decimales; bolsas y baldes, no.
+function paso (linea) {
+  return linea.variante.unidad?.fraccionable ? '0.001' : '1'
+}
+
 function errorDe (i, campo) {
   return form.errors[`${PATH}.lineas.${i}.${campo}`]
 }
 
 function agregar (variante) {
   form.movimiento.lineas.push(nuevaLinea(props.tipo, variante))
+  if (props.tipo === 'salida' && variante.maneja_lotes) cargarLotes(variante.id)
+}
+
+// ── Lotes para elegir en una salida (por presentación) ──
+const lotesPorVariante = ref({})
+
+async function cargarLotes (varianteId) {
+  if (lotesPorVariante.value[varianteId]) return
+  const { data } = await InventarioService.lotes({ params: { variante_id: varianteId, rowsPerPage: 0 } })
+  lotesPorVariante.value = { ...lotesPorVariante.value, [varianteId]: data }
+}
+
+function lotesDe (varianteId) {
+  return (lotesPorVariante.value[varianteId] ?? []).map((l) => ({
+    value: l.id,
+    label: `${l.codigo} · ${formatearCantidad(l.cantidad)}${l.vence_at ? ` · vence ${formatearFechaCorta(l.vence_at)}` : ''}${l.estado === 'vencido' ? ' (VENCIDO)' : ''}`
+  }))
+}
+
+function formatearFechaCorta (iso) {
+  const [anio, mes, dia] = iso.split('-')
+  return `${dia}/${mes}/${anio}`
 }
 
 function quitar (i) {
@@ -285,19 +413,24 @@ function quitar (i) {
 }
 
 // null mientras el número no sea válido.
-function entero (valor) {
-  const numero = Number(valor)
-  return valor !== '' && Number.isInteger(numero) ? numero : null
+function numero (valor) {
+  const n = Number(valor)
+  return valor !== '' && valor !== null && Number.isFinite(n) ? n : null
+}
+
+// Sin el ruido de los decimales flotantes (0.1 + 0.2).
+function redondear (n) {
+  return Math.round(n * 1000) / 1000
 }
 
 function stockResultante (linea) {
   const stock = linea.variante.stock
 
-  if (props.tipo === 'ajuste') return entero(linea.stock_real)
+  if (props.tipo === 'ajuste') return numero(linea.stock_real)
 
-  const cantidad = entero(linea.cantidad)
+  const cantidad = numero(linea.cantidad)
   if (cantidad === null) return null
-  return props.tipo === 'entrada' ? stock + cantidad : stock - cantidad
+  return redondear(props.tipo === 'entrada' ? stock + cantidad : stock - cantidad)
 }
 
 // Rojo si una salida deja el stock negativo; resaltado si el ajuste cambia algo.
@@ -308,10 +441,8 @@ function claseDiferencia (linea) {
   return queda !== linea.variante.stock ? 'movimiento-form__queda--cambia' : ''
 }
 
-const unidades = computed(() => form.movimiento.lineas.reduce((suma, l) => suma + (entero(l.cantidad) ?? 0), 0))
-
 const totalCompra = computed(() => form.movimiento.lineas.reduce((suma, l) => {
-  const cantidad = entero(l.cantidad) ?? 0
+  const cantidad = numero(l.cantidad) ?? 0
   const costo = Number(l.costo_unitario)
   return suma + (Number.isFinite(costo) ? cantidad * costo : 0)
 }, 0))
@@ -330,6 +461,17 @@ defineExpose({ form, submit })
 </script>
 
 <style lang="scss" scoped>
+.movimiento-form__lote {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  max-width: 340px;
+}
+
+.movimiento-form__loteCodigo {
+  flex: 1;
+}
+
 .movimiento-form {
   display: flex;
   flex-direction: column;

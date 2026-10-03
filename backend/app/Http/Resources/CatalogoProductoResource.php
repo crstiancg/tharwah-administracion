@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * Un producto tal como lo muestra el punto de venta: su tarjeta (portada,
- * precio, stock, vendidos) y sus variantes para elegir talla × color.
+ * precio, stock, vendidos) y sus presentaciones para elegir cuál vender.
  *
  * @mixin Producto
  */
@@ -45,6 +45,7 @@ class CatalogoProductoResource extends JsonResource
             'nombre' => $this->nombre,
             'precio' => $this->precio,
             'categoria' => $this->categoria?->only(['id', 'nombre']),
+            'marca' => $this->marca?->only(['id', 'nombre']),
             'miniatura_url' => $miniatura($this->portada),
             'oferta' => $delProducto ? [
                 'id' => $delProducto->id,
@@ -52,22 +53,24 @@ class CatalogoProductoResource extends JsonResource
                 'etiqueta' => $delProducto->etiqueta(),
                 'termina_at' => $delProducto->termina_at->toIso8601String(),
             ] : null,
-            'stock_total' => (int) $this->stock_total,
+            // De la sede del usuario.
+            'stock_total' => (float) $this->stock_total,
             // Unidades vendidas en los últimos 90 días (confirmadas o entregadas).
-            'vendidos' => (int) $this->vendidos,
+            'vendidos' => (float) $this->vendidos,
             'variantes' => $variantes->map(fn ($x) => [
                 'id' => $x['variante']->id,
                 'sku' => $x['variante']->sku,
                 'codigo_barras' => $x['variante']->codigo_barras,
-                'stock' => $x['variante']->stock,
+                'stock' => $x['variante']->stockVisible(),
                 // Precio de venta HOY (con oferta, si hay) y el de lista (el
                 // de la variante o el base del producto), para tacharlo.
                 'precio' => $x['precio'],
                 'precio_lista' => $x['precio_lista'],
                 'oferta' => $x['oferta']?->etiqueta(),
-                'talla' => $x['variante']->talla?->only(['id', 'nombre', 'orden']),
+                'presentacion' => $x['variante']->presentacion,
+                'unidad' => $x['variante']->unidad?->only(['id', 'nombre', 'abreviatura', 'fraccionable']),
                 'color' => $x['variante']->color?->only(['id', 'nombre', 'hexadecimal']),
-                // La foto del color; si no tiene, la del producto.
+                // La foto de la presentación; si no tiene, la del producto.
                 'miniatura_url' => $miniatura($x['variante']->portada) ?? $miniatura($this->portada),
             ])->values(),
         ];

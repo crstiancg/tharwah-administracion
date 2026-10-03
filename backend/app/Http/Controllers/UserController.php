@@ -17,7 +17,7 @@ class UserController extends Controller
     {
         return $this->generateViewSetList(
             $request,
-            User::query()->with('roles:id,name'),
+            User::query()->with(['roles:id,name', 'sede:id,nombre']),
             [],
             ['name', 'username', 'email'],
             ['id', 'name', 'username', 'email', 'active'],
@@ -112,7 +112,7 @@ class UserController extends Controller
     private function datos(StoreUserRequest $request): array
     {
         $datos = collect($request->validated('usuario'))
-            ->only(['name', 'username', 'email', 'password'])
+            ->only(['name', 'username', 'email', 'password', 'sede_id'])
             ->all();
 
         // Al editar, sin contraseña nueva se conserva la actual. El cast

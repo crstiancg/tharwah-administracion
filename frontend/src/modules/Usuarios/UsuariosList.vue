@@ -214,6 +214,7 @@ const columns = [
   { name: 'id', label: 'ID', field: 'id', align: 'left', sortable: true },
   { name: 'name', label: 'Usuario', field: 'name', align: 'left', sortable: true },
   { name: 'email', label: 'Email', field: 'email', align: 'left', sortable: true },
+  { name: 'sede', label: 'Sede', field: (row) => row.sede?.nombre ?? '— sin sede —', align: 'left' },
   { name: 'roles', label: 'Roles', field: (row) => row.roles?.length ?? 0, align: 'left' },
   { name: 'active', label: 'Estado', field: 'active', align: 'left', sortable: true },
   { name: 'acciones', label: '', field: 'id', align: 'right' }

@@ -142,10 +142,11 @@
             @click="alternarVariante(fila, v.id)"
           >
             <span
+              v-if="v.color"
               class="oferta-variante__swatch"
-              :style="{ background: v.color?.hexadecimal }"
+              :style="{ background: v.color.hexadecimal }"
             />
-            T{{ v.talla?.nombre }} · {{ v.color?.nombre }}
+            {{ v.presentacion }}<template v-if="v.color"> · {{ v.color.nombre }}</template>
           </button>
           <p
             v-if="!fila.variantes.length"

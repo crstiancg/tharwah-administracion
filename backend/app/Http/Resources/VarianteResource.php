@@ -17,20 +17,25 @@ class VarianteResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'talla_id' => $this->talla_id,
+            'presentacion' => $this->presentacion,
+            'unidad_id' => $this->unidad_id,
             'color_id' => $this->color_id,
-            'talla' => $this->whenLoaded('talla', fn () => $this->talla->only(['id', 'nombre', 'orden'])),
-            'color' => $this->whenLoaded('color', fn () => $this->color->only(['id', 'nombre', 'hexadecimal'])),
+            'unidad' => $this->whenLoaded('unidad', fn () => $this->unidad->only(['id', 'nombre', 'abreviatura', 'fraccionable'])),
+            'color' => $this->whenLoaded('color', fn () => $this->color?->only(['id', 'nombre', 'hexadecimal'])),
             'sku' => $this->sku,
             // Lo asigna el sistema al crear: el form sólo lo muestra.
             'codigo_barras' => $this->codigo_barras,
             // null = usa el precio base del producto.
             'precio' => $this->precio,
+            // Total de la empresa y, en el detalle, por sede.
             'stock' => $this->stock,
+            'stocks' => $this->whenLoaded('stocks', fn () => $this->stocks
+                ->filter(fn ($s) => $s->cantidad != 0)
+                ->map(fn ($s) => ['sede_id' => $s->sede_id, 'sede' => $s->sede?->nombre, 'cantidad' => $s->cantidad])
+                ->values()),
+            'stock_minimo' => $this->stock_minimo,
             // Con historial de inventario no se puede quitar del producto.
             'con_movimientos' => $this->whenHas('movimientos_exists', fn ($existe) => (bool) $existe),
-            // {"Largo": 52} en cm; objeto vacío y no [] cuando no hay.
-            'medidas' => (object) ($this->medidas ?? []),
             'archivos' => ArchivoResource::collection($this->whenLoaded('archivos')),
         ];
     }

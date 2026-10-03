@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Models\MovimientoInventario;
-use Closure;
 use Illuminate\Validation\Rule;
 
 /**
@@ -21,18 +20,14 @@ class RegistrarSalidaRequest extends MovimientoInventarioRequest
     protected function reglasDeLinea(int|string $i): array
     {
         return [
-            "movimiento.lineas.{$i}.cantidad" => ['required', 'integer', 'min:1', 'max:100000', $this->hayStock($i)],
+            "movimiento.lineas.{$i}.cantidad" => [...$this->reglasCantidad($i), $this->hayStock($i)],
+            // Opcional: sin lote sale del que vence primero.
+            "movimiento.lineas.{$i}.lote_id" => [
+                'nullable', 'integer',
+                Rule::exists('lotes', 'id')
+                    ->where('variante_id', (int) $this->input("movimiento.lineas.{$i}.variante_id"))
+                    ->where('sede_id', (int) $this->user()?->sede_id),
+            ],
         ];
-    }
-
-    private function hayStock(int|string $i): Closure
-    {
-        return function (string $attribute, mixed $value, Closure $fail) use ($i) {
-            $stock = $this->stockDe($i);
-
-            if ($stock !== null && (int) $value > $stock) {
-                $fail("Stock insuficiente: hay {$stock}.");
-            }
-        };
     }
 }

@@ -29,13 +29,13 @@
         <q-item-section side>
           <span
             class="buscador-variante__swatch"
-            :style="{ background: scope.opt.color?.hexadecimal }"
+            :style="{ background: scope.opt.color?.hexadecimal ?? 'transparent' }"
           />
         </q-item-section>
         <q-item-section>
           <q-item-label>{{ scope.opt.producto?.nombre }}</q-item-label>
           <q-item-label caption>
-            Talla {{ scope.opt.talla }} · {{ scope.opt.color?.nombre }} ·
+            {{ scope.opt.presentacion }}<template v-if="scope.opt.color"> · {{ scope.opt.color.nombre }}</template> ·
             <span class="text-mono">{{ scope.opt.sku }}</span>
           </q-item-label>
         </q-item-section>
@@ -43,7 +43,7 @@
           side
           class="text-mono"
         >
-          {{ yaElegida(scope.opt) ? 'agregada' : `stock ${scope.opt.stock}` }}
+          {{ yaElegida(scope.opt) ? 'agregada' : `stock ${scope.opt.stock} ${scope.opt.unidad?.abreviatura ?? ''}` }}
         </q-item-section>
       </q-item>
     </template>
@@ -51,7 +51,7 @@
     <template #no-option>
       <q-item>
         <q-item-section class="text-grey">
-          {{ termino ? 'Ninguna variante coincide.' : 'Escribí un SKU o el nombre del producto.' }}
+          {{ termino ? 'Ninguna presentación coincide.' : 'Escribí un SKU o el nombre del producto.' }}
         </q-item-section>
       </q-item>
     </template>
@@ -70,7 +70,7 @@ import InventarioService from '@/services/InventarioService'
 const props = defineProps({
   label: {
     type: String,
-    default: 'Agregar variante: SKU o nombre del producto'
+    default: 'Agregar presentación: SKU o nombre del producto'
   },
   // Ids ya agregados al documento: se muestran deshabilitados.
   excluir: {

@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 
-#[Fillable(['nombre', 'categoria_id', 'marca_id', 'descripcion', 'precio', 'activo'])]
+#[Fillable(['nombre', 'categoria_id', 'marca_id', 'descripcion', 'precio', 'activo', 'maneja_lotes'])]
 class Producto extends Model
 {
     protected function casts(): array
@@ -17,6 +18,7 @@ class Producto extends Model
         return [
             'precio' => 'decimal:2',
             'activo' => 'boolean',
+            'maneja_lotes' => 'boolean',
         ];
     }
 
@@ -33,6 +35,14 @@ class Producto extends Model
     public function variantes(): HasMany
     {
         return $this->hasMany(Variante::class);
+    }
+
+    /**
+     * El stock de todas sus presentaciones, por sede.
+     */
+    public function stocks(): HasManyThrough
+    {
+        return $this->hasManyThrough(Stock::class, Variante::class);
     }
 
     public function archivos(): MorphMany

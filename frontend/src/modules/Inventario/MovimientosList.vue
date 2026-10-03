@@ -23,6 +23,11 @@
       @clear="limpiarFiltros"
     >
       <AppFilterPill
+        v-model="sedeFilter"
+        label="Sede"
+        :options="sedeOptions"
+      />
+      <AppFilterPill
         v-model="tipoFilter"
         label="Tipo"
         :options="tipoOptions"
@@ -61,15 +66,16 @@
         <q-td :props="props">
           <div class="movimiento-variante">
             <span
+              v-if="props.row.variante.color"
               class="movimiento-swatch"
-              :style="{ background: props.row.variante.color?.hexadecimal }"
+              :style="{ background: props.row.variante.color.hexadecimal }"
             />
             <div>
               <div class="movimiento-producto">
                 {{ props.row.variante.producto?.nombre }}
               </div>
               <div class="movimiento-detalle">
-                Talla {{ props.row.variante.talla }} · {{ props.row.variante.color?.nombre }} ·
+                {{ props.row.variante.presentacion }}<template v-if="props.row.variante.color"> · {{ props.row.variante.color.nombre }}</template> ·
                 <span class="text-mono">{{ props.row.variante.sku }}</span>
               </div>
             </div>
@@ -82,7 +88,7 @@
           :props="props"
           :class="['text-right', 'text-mono', props.row.cantidad > 0 ? 'movimiento-mas' : 'movimiento-menos']"
         >
-          {{ props.row.cantidad > 0 ? `+${props.row.cantidad}` : props.row.cantidad }}
+          {{ props.row.cantidad > 0 ? '+' : '' }}{{ formatearCantidad(props.row.cantidad) }}
         </q-td>
       </template>
 
@@ -90,12 +96,26 @@
         <q-td :props="props">
           <div v-if="props.row.motivo_label">
             {{ props.row.motivo_label }}
+            <template v-if="props.row.sede_relacionada">
+              {{ props.row.cantidad < 0 ? 'a' : 'desde' }} {{ props.row.sede_relacionada.nombre }}
+            </template>
           </div>
           <div
             v-if="props.row.referencia"
             class="movimiento-detalle"
           >
             Ref. {{ props.row.referencia }}
+          </div>
+          <div
+            v-for="lote in props.row.lotes ?? []"
+            :key="lote.codigo"
+            class="movimiento-detalle"
+          >
+            Lote {{ lote.codigo }}<template v-if="props.row.lotes.length > 1">
+              ({{ formatearCantidad(Math.abs(lote.cantidad)) }})
+            </template><template v-if="lote.vence_at">
+              · vence {{ lote.vence_at.split('-').reverse().join('/') }}
+            </template>
           </div>
           <div
             v-if="props.row.costo_unitario !== null"
@@ -156,7 +176,9 @@ import AppFilterPill from '@/components/AppFilterPill.vue'
 import AppPageHeader from '@/components/AppPageHeader.vue'
 import AppTable from '@/components/AppTable.vue'
 import InventarioService from '@/services/InventarioService'
+import SedeService from '@/services/SedeService'
 import { useUserStore } from '@/stores/user-store'
+import { formatearCantidad } from '@/utils/cantidad'
 import { formatearPrecio } from '@/utils/moneda'
 import MovimientoForm from './MovimientoForm.vue'
 import { TIPOS } from './constantes'
@@ -172,9 +194,10 @@ const acciones = computed(() => Object.entries(TIPOS)
 const columns = [
   { name: 'fecha', label: 'Fecha', field: 'fecha', align: 'left', sortable: true },
   { name: 'tipo', label: 'Tipo', field: 'tipo', align: 'left' },
-  { name: 'variante', label: 'Variante', field: (row) => row.variante?.sku, align: 'left' },
+  { name: 'sede', label: 'Sede', field: (row) => row.sede?.nombre ?? '—', align: 'left' },
+  { name: 'variante', label: 'Presentación', field: (row) => row.variante?.sku, align: 'left' },
   { name: 'cantidad', label: 'Cantidad', field: 'cantidad', align: 'right' },
-  { name: 'stock_resultante', label: 'Stock', field: 'stock_resultante', align: 'right', classes: 'text-mono' },
+  { name: 'stock_resultante', label: 'Stock en sede', field: 'stock_resultante', align: 'right', classes: 'text-mono', format: (v) => formatearCantidad(v) },
   { name: 'detalle', label: 'Detalle', field: 'motivo', align: 'left' },
   { name: 'usuario', label: 'Usuario', field: (row) => row.usuario?.name ?? '—', align: 'left' }
 ]
@@ -188,6 +211,13 @@ function formatearFecha (iso) {
 const search = ref('')
 const busqueda = ref('')
 const tipoFilter = ref(null)
+// Arranca en la sede del usuario: es la que le importa.
+const sedeFilter = ref(userStore.sedeId)
+const sedes = ref([])
+const sedeOptions = computed(() => [
+  { label: 'Todas', value: null },
+  ...sedes.value.map((s) => ({ label: s.nombre, value: s.id }))
+])
 
 let searchTimer
 watch(search, (value) => {
@@ -197,18 +227,19 @@ watch(search, (value) => {
 
 const tipoOptions = [
   { label: 'Todos', value: null },
-  ...Object.entries(TIPOS).map(([value, { label }]) => ({ label, value }))
+  ...Object.entries(TIPOS).filter(([, t]) => !t.soloAccion).map(([value, { label }]) => ({ label, value }))
 ]
 
-const hayFiltros = computed(() => Boolean(search.value || tipoFilter.value !== null))
+const hayFiltros = computed(() => Boolean(search.value || tipoFilter.value !== null || sedeFilter.value !== userStore.sedeId))
 
 function limpiarFiltros () {
   search.value = ''
   tipoFilter.value = null
+  sedeFilter.value = userStore.sedeId
 }
 
 // AppTable vuelve a la página 1 y pide datos cuando cambia `filter`.
-const filtroTabla = computed(() => JSON.stringify({ search: busqueda.value, tipo: tipoFilter.value }))
+const filtroTabla = computed(() => JSON.stringify({ search: busqueda.value, tipo: tipoFilter.value, sede: sedeFilter.value }))
 
 // ── Tabla (paginación en el servidor) ──
 const tableRef = ref()
@@ -225,6 +256,7 @@ async function onRequest ({ pagination: requested }) {
     const columna = sortBy === 'fecha' ? 'id' : sortBy
     const params = { rowsPerPage, page, search: busqueda.value, order_by: descending ? `-${columna}` : columna }
     if (tipoFilter.value) params.tipo = tipoFilter.value
+    if (sedeFilter.value) params.sede_id = sedeFilter.value
 
     const { data, total = 0 } = await InventarioService.getData({ params })
 
@@ -235,8 +267,11 @@ async function onRequest ({ pagination: requested }) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   tableRef.value.requestServerInteraction()
+  if (userStore.hasPermission('sedes.index')) {
+    sedes.value = (await SedeService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } })).data
+  }
 })
 
 // ── Registrar ──

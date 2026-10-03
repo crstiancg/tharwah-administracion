@@ -29,6 +29,8 @@
 
         <q-space />
 
+        <AppSedeSelector />
+
         <q-btn
           flat
           dense
@@ -65,7 +67,7 @@
       <div class="app-drawer__inner">
         <div class="app-brand">
           <AppBrandMark :size="32" />
-          <span class="app-brand__name">FOR KIDS</span>
+          <span class="app-brand__name">THARWAH</span>
         </div>
 
         <div class="app-drawer__section">General</div>
@@ -103,6 +105,13 @@
           </AppNavItem>
 
           <AppNavItem
+            v-if="userStore.hasPermission('cotizaciones.index')"
+            to="/cotizaciones"
+            icon="request_quote"
+            label="Cotizaciones"
+          />
+
+          <AppNavItem
             v-if="userStore.hasPermission('clientes.index')"
             to="/clientes"
             icon="groups"
@@ -138,6 +147,37 @@
           />
 
           <AppNavItem
+            v-if="userStore.hasPermission('inventario.index')"
+            to="/reponer"
+            icon="production_quantity_limits"
+            label="Por reponer"
+          />
+
+          <AppNavItem
+            v-if="userStore.hasPermission('inventario.lotes')"
+            to="/vencimientos"
+            icon="event_busy"
+            label="Vencimientos"
+          >
+            <!-- Lotes vencidos o por vencer en la sede, con stock. -->
+            <template
+              v-if="alertasLotes"
+              #badge
+            >
+              <AppBadge variant="brand">
+                {{ alertasLotes }}
+              </AppBadge>
+            </template>
+          </AppNavItem>
+
+          <AppNavItem
+            v-if="userStore.hasPermission('reportes.ventas')"
+            to="/reportes"
+            icon="insights"
+            label="Reportes"
+          />
+
+          <AppNavItem
             v-if="userStore.hasPermission('etiquetas.imprimir')"
             to="/etiquetas"
             icon="mdi-barcode"
@@ -145,7 +185,26 @@
           />
         </nav>
 
-        <template v-if="['categorias.index', 'colores.index', 'tallas.index'].some((p) => userStore.hasPermission(p))">
+        <template v-if="['compras.index', 'proveedores.index'].some((p) => userStore.hasPermission(p))">
+          <div class="app-drawer__section">Compras</div>
+
+          <nav class="app-drawer__nav">
+            <AppNavItem
+              v-if="userStore.hasPermission('compras.index')"
+              to="/compras"
+              icon="shopping_bag"
+              label="Compras"
+            />
+            <AppNavItem
+              v-if="userStore.hasPermission('proveedores.index')"
+              to="/proveedores"
+              icon="local_shipping"
+              label="Proveedores"
+            />
+          </nav>
+        </template>
+
+        <template v-if="['categorias.index', 'marcas.index', 'unidades.index', 'colores.index'].some((p) => userStore.hasPermission(p))">
           <div class="app-drawer__section">Catálogos</div>
 
           <nav class="app-drawer__nav">
@@ -156,24 +215,37 @@
               label="Categorías"
             />
             <AppNavItem
+              v-if="userStore.hasPermission('marcas.index')"
+              to="/marcas"
+              icon="verified"
+              label="Marcas"
+            />
+            <AppNavItem
+              v-if="userStore.hasPermission('unidades.index')"
+              to="/unidades"
+              icon="straighten"
+              label="Unidades de medida"
+            />
+            <AppNavItem
               v-if="userStore.hasPermission('colores.index')"
               to="/colores"
               icon="palette"
               label="Colores"
             />
-            <AppNavItem
-              v-if="userStore.hasPermission('tallas.index')"
-              to="/tallas"
-              icon="straighten"
-              label="Tallas"
-            />
           </nav>
         </template>
 
-        <template v-if="['usuarios.index', 'roles.index', 'permisos.index'].some((p) => userStore.hasPermission(p))">
-          <div class="app-drawer__section">Seguridad</div>
+        <template v-if="['sedes.index', 'usuarios.index', 'roles.index', 'permisos.index'].some((p) => userStore.hasPermission(p))">
+          <div class="app-drawer__section">Administración</div>
 
           <nav class="app-drawer__nav">
+            <AppNavItem
+              v-if="userStore.hasPermission('sedes.index')"
+              to="/sedes"
+              icon="storefront"
+              label="Sedes"
+            />
+
             <AppNavItem
               v-if="userStore.hasPermission('usuarios.index')"
               to="/usuarios"
@@ -230,6 +302,8 @@ import { useUserStore } from '@/stores/user-store'
 import AppBrandMark from '@/components/AppBrandMark.vue'
 import AppNavItem from '@/components/AppNavItem.vue'
 import AppBadge from '@/components/AppBadge.vue'
+import AppSedeSelector from '@/components/AppSedeSelector.vue'
+import InventarioService from '@/services/InventarioService'
 import PedidoService from '@/services/PedidoService'
 
 const $q = useQuasar()
@@ -250,6 +324,20 @@ async function contarPendientes () {
   }
 }
 watch(() => route.path, contarPendientes, { immediate: true })
+
+// Lotes vencidos + por vencer de la sede: el badge de Vencimientos.
+const alertasLotes = ref(0)
+async function contarAlertasLotes () {
+  if (!userStore.hasPermission('inventario.lotes')) return
+  try {
+    const [vencidos, porVencer] = await Promise.all(['vencido', 'por_vencer'].map((estado) =>
+      InventarioService.lotes({ params: { estado, rowsPerPage: 1 } })))
+    alertasLotes.value = (vencidos.total ?? 0) + (porVencer.total ?? 0)
+  } catch {
+    // Un badge no vale un error en pantalla.
+  }
+}
+watch(() => route.path, contarAlertasLotes, { immediate: true })
 
 async function onLogout () {
   await userStore.logout()

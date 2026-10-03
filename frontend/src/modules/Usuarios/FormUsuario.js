@@ -13,6 +13,7 @@ export default function formUsuario () {
       username: '',
       email: '',
       password: '',
+      sede_id: null,
       rolesSelected: [],
       permisosSelected: []
     }

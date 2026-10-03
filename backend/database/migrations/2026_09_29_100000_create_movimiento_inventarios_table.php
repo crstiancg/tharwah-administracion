@@ -23,12 +23,16 @@ return new class extends Migration
             $table->uuid('grupo')->index();
             // restrict: una variante con historial no se borra.
             $table->foreignId('variante_id')->constrained('variantes')->restrictOnDelete();
+            // La sede cuyo stock se movió.
+            $table->foreignId('sede_id')->constrained('sedes')->restrictOnDelete();
+            // En un traslado, la otra sede (a dónde fue o de dónde vino).
+            $table->foreignId('sede_relacionada_id')->nullable()->constrained('sedes')->restrictOnDelete();
             $table->string('tipo', 10);
             // Con signo: +10 entra, -2 sale.
-            $table->integer('cantidad');
-            // El stock justo después de este movimiento: el historial se lee
-            // solo, sin recalcular desde el principio.
-            $table->integer('stock_resultante');
+            $table->decimal('cantidad', 12, 3);
+            // El stock de la sede justo después de este movimiento: el
+            // historial se lee solo, sin recalcular desde el principio.
+            $table->decimal('stock_resultante', 12, 3);
             $table->decimal('costo_unitario', 10, 2)->nullable();
             $table->string('motivo', 30)->nullable();
             $table->string('referencia', 60)->nullable();
@@ -38,6 +42,7 @@ return new class extends Migration
             $table->timestamp('created_at')->useCurrent();
 
             $table->index(['variante_id', 'id']);
+            $table->index(['sede_id', 'id']);
             $table->index(['tipo', 'id']);
         });
     }

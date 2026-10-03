@@ -85,7 +85,7 @@
               {{ item.variante.producto?.nombre }}
             </div>
             <div class="pedido-detalle__meta">
-              Talla {{ item.variante.talla }} · {{ item.variante.color?.nombre }} ·
+              {{ item.variante.presentacion }}<template v-if="item.variante.color"> · {{ item.variante.color.nombre }}</template> ·
               <span class="text-mono">{{ item.variante.sku }}</span>
             </div>
           </td>

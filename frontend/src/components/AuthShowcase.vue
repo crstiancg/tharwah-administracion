@@ -63,7 +63,7 @@
           glow
         />
         <div>
-          <div class="showcase__brandName">FOR KIDS</div>
+          <div class="showcase__brandName">THARWAH</div>
           <div class="showcase__brandKicker">Panel de operación</div>
         </div>
       </div>
@@ -94,8 +94,8 @@
           class="showcase__lede"
           style="--rise: 4"
         >
-          Pedidos, stock e ingresos al día. Sin planillas sueltas, sin pedirle
-          el número a nadie.
+          Materiales de construcción: stock, ventas y caja al día. Sin
+          planillas sueltas, sin pedirle el número a nadie.
         </p>
       </div>
 
@@ -104,7 +104,7 @@
         class="showcase__foot"
         style="--rise: 5"
       >
-        <span>© {{ year }} FOR KIDS</span>
+        <span>© {{ year }} THARWAH</span>
         <span class="showcase__footSep" />
         <span class="showcase__footItem">
           <q-icon

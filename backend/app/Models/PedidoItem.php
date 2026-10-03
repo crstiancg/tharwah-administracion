@@ -18,7 +18,7 @@ class PedidoItem extends Model
     protected function casts(): array
     {
         return [
-            'cantidad' => 'integer',
+            'cantidad' => 'float',
             'precio_unitario' => 'decimal:2',
             'costo_unitario' => 'decimal:4',
             'subtotal' => 'decimal:2',

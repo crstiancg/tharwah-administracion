@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Requests\RegistrarAjusteRequest;
 use App\Http\Requests\RegistrarEntradaRequest;
 use App\Http\Requests\RegistrarSalidaRequest;
+use App\Http\Requests\RegistrarTrasladoRequest;
 use App\Http\Resources\MovimientoResource;
 use App\Http\Resources\VarianteStockResource;
+use App\Http\Resources\LoteResource;
+use App\Models\Lote;
 use App\Models\MovimientoInventario;
 use App\Models\Variante;
 use App\Services\Inventario;
@@ -21,7 +24,7 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class InventarioController extends Controller
 {
-    private const RELACIONES = ['variante.producto:id,nombre', 'variante.talla:id,nombre', 'variante.color:id,nombre,hexadecimal'];
+    private const RELACIONES = ['lotes', 'variante.producto:id,nombre,maneja_lotes', 'variante.unidad:id,nombre,abreviatura,fraccionable', 'variante.color:id,nombre,hexadecimal'];
 
     public function __construct(private Inventario $inventario) {}
 
@@ -30,7 +33,7 @@ class InventarioController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = MovimientoInventario::query()->with([...self::RELACIONES, 'usuario:id,name']);
+        $query = MovimientoInventario::query()->with([...self::RELACIONES, 'usuario:id,name', 'sede:id,nombre', 'sedeRelacionada:id,nombre']);
 
         if ($request->filled('producto_id')) {
             $query->whereHas('variante', fn (Builder $q) => $q->where('producto_id', $request->integer('producto_id')));
@@ -59,7 +62,7 @@ class InventarioController extends Controller
         return $this->generateViewSetList(
             $request,
             $query,
-            ['tipo', 'variante_id', 'grupo'],
+            ['tipo', 'variante_id', 'grupo', 'sede_id'],
             [],
             ['id', 'tipo', 'cantidad'],
             MovimientoResource::class,
@@ -67,12 +70,17 @@ class InventarioController extends Controller
     }
 
     /**
-     * Buscador de variantes para las líneas: por SKU o nombre del producto.
+     * Buscador de presentaciones para las líneas: por SKU o nombre del
+     * producto, con el stock de una sede (`sede_id`, por defecto la del
+     * usuario) y el total de la empresa.
      */
     public function variantes(Request $request): JsonResponse
     {
+        $sedeId = $request->integer('sede_id') ?: $request->user()->sede_id;
+
         $query = Variante::query()
-            ->with(['producto:id,nombre,precio,categoria_id', 'producto.portada', 'portada', 'talla:id,nombre,orden', 'color:id,nombre,hexadecimal'])
+            ->when($sedeId, fn (Builder $q) => $q->conStockDeSede($sedeId))
+            ->with(['producto:id,nombre,precio,categoria_id,maneja_lotes', 'producto.portada', 'portada', 'unidad:id,nombre,abreviatura,fraccionable', 'color:id,nombre,hexadecimal'])
             ->whereHas('producto', fn (Builder $p) => $p->where('activo', true));
 
         // Lector de código de barras: el código de la etiqueta (EAN-13) o el
@@ -82,6 +90,12 @@ class InventarioController extends Controller
             $query->where(fn (Builder $q) => $q
                 ->where('variantes.codigo_barras', $codigo)
                 ->orWhere('variantes.sku', $codigo));
+        }
+
+        // "Por reponer": en la sede, por debajo del mínimo.
+        if ($request->boolean('bajo_minimo') && $sedeId) {
+            $query->where('variantes.stock_minimo', '>', 0)
+                ->whereRaw('(SELECT COALESCE(SUM(cantidad), 0) FROM stocks WHERE stocks.variante_id = variantes.id AND stocks.sede_id = ?) < variantes.stock_minimo', [$sedeId]);
         }
 
         if ($request->filled('search')) {
@@ -94,7 +108,7 @@ class InventarioController extends Controller
 
         return $this->generateViewSetList(
             $request,
-            $query->orderBy('producto_id')->orderBy('talla_id')->orderBy('color_id'),
+            $query->orderBy('producto_id')->orderBy('id'),
             ['producto_id'],
             [],
             [],
@@ -102,11 +116,47 @@ class InventarioController extends Controller
         );
     }
 
+    /**
+     * Lotes con stock, el que vence primero arriba. Filtros: `sede_id` (por
+     * defecto la del usuario; 0 = todas), `variante_id`, `estado`
+     * (vencido | por_vencer) y búsqueda por producto, SKU o código de lote.
+     */
+    public function lotes(Request $request): JsonResponse
+    {
+        $sedeId = $request->has('sede_id') ? $request->integer('sede_id') : $request->user()->sede_id;
+        $hoy = today()->toDateString();
+
+        $query = Lote::query()
+            ->with(['sede:id,nombre', 'variante.producto:id,nombre', 'variante.unidad:id,abreviatura', 'variante.color:id,nombre,hexadecimal'])
+            ->where('cantidad', '>', 0)
+            ->when($sedeId, fn (Builder $q) => $q->where('sede_id', $sedeId))
+            ->when($request->filled('variante_id'), fn (Builder $q) => $q->where('variante_id', $request->integer('variante_id')))
+            ->when($request->input('estado') === 'vencido', fn (Builder $q) => $q->whereDate('vence_at', '<', $hoy))
+            ->when($request->input('estado') === 'por_vencer', fn (Builder $q) => $q
+                ->whereDate('vence_at', '>=', $hoy)
+                ->whereDate('vence_at', '<=', today()->addDays(Lote::DIAS_POR_VENCER)->toDateString()));
+
+        if ($request->filled('search')) {
+            $term = '%'.$request->input('search').'%';
+            $query->where(fn (Builder $q) => $q
+                ->where('lotes.codigo', 'like', $term)
+                ->orWhereHas('variante', fn (Builder $v) => $v
+                    ->where('sku', 'like', $term)
+                    ->orWhereHas('producto', fn (Builder $p) => $p->where('nombre', 'like', $term))));
+        }
+
+        // El que vence primero arriba; los sin fecha al final.
+        $query->orderByRaw('vence_at IS NULL')->orderBy('vence_at')->orderBy('id');
+
+        return $this->generateViewSetList($request, $query, [], [], [], LoteResource::class);
+    }
+
     public function entradas(RegistrarEntradaRequest $request): JsonResponse
     {
         $movimiento = $request->validated('movimiento');
 
         return $this->respuesta($this->inventario->entrada(
+            $request->user()->sedeOperativa(),
             $movimiento['lineas'], $movimiento['referencia'] ?? null, $movimiento['observacion'] ?? null, $request->user(),
         ));
     }
@@ -115,8 +165,11 @@ class InventarioController extends Controller
     {
         $movimiento = $request->validated('movimiento');
 
+        // Una salida manual sí puede sacar lotes vencidos (es la merma).
         return $this->respuesta($this->inventario->salida(
+            $request->user()->sedeOperativa(),
             $movimiento['lineas'], $movimiento['motivo'], $movimiento['referencia'] ?? null, $movimiento['observacion'] ?? null, $request->user(),
+            vencidos: true,
         ));
     }
 
@@ -125,7 +178,25 @@ class InventarioController extends Controller
         $movimiento = $request->validated('movimiento');
 
         return $this->respuesta($this->inventario->ajuste(
+            $request->user()->sedeOperativa(),
             $movimiento['lineas'], $movimiento['referencia'] ?? null, $movimiento['observacion'] ?? null, $request->user(),
+        ));
+    }
+
+    /**
+     * Desde la sede del usuario hacia otra.
+     */
+    public function traslados(RegistrarTrasladoRequest $request): JsonResponse
+    {
+        $movimiento = $request->validated('movimiento');
+
+        return $this->respuesta($this->inventario->traslado(
+            $request->user()->sedeOperativa(),
+            (int) $movimiento['sede_destino_id'],
+            $movimiento['lineas'],
+            $movimiento['referencia'] ?? null,
+            $movimiento['observacion'] ?? null,
+            $request->user(),
         ));
     }
 
@@ -137,7 +208,7 @@ class InventarioController extends Controller
      */
     private function respuesta(Collection $movimientos): JsonResponse
     {
-        $movimientos->load([...self::RELACIONES, 'usuario:id,name']);
+        $movimientos->load([...self::RELACIONES, 'usuario:id,name', 'sede:id,nombre', 'sedeRelacionada:id,nombre']);
 
         return response()->json([
             'data' => $movimientos->map(fn ($m) => (new MovimientoResource($m))->resolve(request())),

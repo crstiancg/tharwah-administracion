@@ -31,6 +31,8 @@ class Pedido extends Model
         'whatsapp' => 'WhatsApp',
         'redes' => 'Redes sociales',
         'web' => 'Web',
+        // Nace de convertir una cotización.
+        'cotizacion' => 'Cotización',
     ];
 
     protected function casts(): array
@@ -48,6 +50,11 @@ class Pedido extends Model
     public function cliente(): BelongsTo
     {
         return $this->belongsTo(Cliente::class);
+    }
+
+    public function sede(): BelongsTo
+    {
+        return $this->belongsTo(Sede::class);
     }
 
     public function items(): HasMany

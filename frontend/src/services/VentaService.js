@@ -3,7 +3,7 @@ import { api } from '@/boot/axios'
 class VentaService {
   /**
    * Catálogo del punto de venta (paginado): productos activos con portada,
-   * stock, vendidos y variantes. Filtros: search, categoria_id, talla_id,
+   * stock, vendidos y variantes. Filtros: search, categoria_id, marca_id,
    * color_id, con_stock, order_by (vendidos | nombre | precio | -precio | stock).
    */
   static async catalogo (config) {

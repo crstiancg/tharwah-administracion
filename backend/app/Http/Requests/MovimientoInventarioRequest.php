@@ -3,12 +3,16 @@
 namespace App\Http\Requests;
 
 use App\Models\Variante;
+use App\Services\Inventario;
+use App\Support\Cantidades;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Base de entradas, salidas y ajustes: un documento (`movimiento`) con varias
- * líneas (`movimiento.lineas`), una por variante.
+ * Base de entradas, salidas, ajustes y traslados: un documento
+ * (`movimiento`) con varias líneas (`movimiento.lineas`), una por
+ * presentación. Todo pasa en la sede del usuario (en un traslado, es el
+ * origen).
  *
  * Lo que valida acá es la forma. El stock suficiente de una salida también
  * se chequea acá (para avisar mientras se tipea), pero la palabra final la
@@ -91,7 +95,7 @@ abstract class MovimientoInventarioRequest extends FormRequest
                     return;
                 }
                 if (($otra['variante_id'] ?? null) == $value) {
-                    $fail('Esta variante ya está en otra línea.');
+                    $fail('Esta presentación ya está en otra línea.');
 
                     return;
                 }
@@ -100,13 +104,54 @@ abstract class MovimientoInventarioRequest extends FormRequest
     }
 
     /**
-     * Stock de la variante de la línea (null si todavía no se eligió).
+     * Stock de la presentación de la línea en la sede del usuario (null si
+     * todavía no se eligió).
      */
-    protected function stockDe(int|string $i): ?int
+    protected function stockDe(int|string $i): ?float
+    {
+        return Cantidades::stockEnSede($this->input("movimiento.lineas.{$i}.variante_id"), $this->user()?->sede_id);
+    }
+
+    /** @var array<int, bool> */
+    private array $manejaLotes = [];
+
+    /**
+     * Si el producto de la presentación de la línea maneja lotes.
+     */
+    protected function manejaLotes(int|string $i): bool
     {
         $id = $this->input("movimiento.lineas.{$i}.variante_id");
+        if (! is_numeric($id)) {
+            return false;
+        }
 
-        return is_numeric($id) ? Variante::query()->whereKey($id)->value('stock') : null;
+        return $this->manejaLotes[(int) $id] ??= Variante::query()->whereKey($id)
+            ->whereHas('producto', fn ($q) => $q->where('maneja_lotes', true))
+            ->exists();
+    }
+
+    /**
+     * Cantidad positiva y, si la unidad no es fraccionable, entera.
+     *
+     * @return array<int, mixed>
+     */
+    protected function reglasCantidad(int|string $i): array
+    {
+        return [...Cantidades::positiva(), Cantidades::segunUnidad($this->input("movimiento.lineas.{$i}.variante_id"))];
+    }
+
+    /**
+     * Para salidas y traslados: no sacar más de lo que hay en la sede.
+     */
+    protected function hayStock(int|string $i): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($i) {
+            $stock = $this->stockDe($i);
+
+            if ($stock !== null && (float) $value > $stock + 0.0005) {
+                $fail('Stock insuficiente en tu sede: hay '.Inventario::formatear($stock).'.');
+            }
+        };
     }
 
     /**
@@ -129,10 +174,14 @@ abstract class MovimientoInventarioRequest extends FormRequest
             'movimiento.referencia' => 'referencia',
             'movimiento.observacion' => 'observación',
             'movimiento.motivo' => 'motivo',
-            'movimiento.lineas.*.variante_id' => 'variante',
+            'movimiento.lineas.*.variante_id' => 'presentación',
+            'movimiento.sede_destino_id' => 'sede de destino',
             'movimiento.lineas.*.cantidad' => 'cantidad',
             'movimiento.lineas.*.costo_unitario' => 'costo unitario',
             'movimiento.lineas.*.stock_real' => 'stock contado',
+            'movimiento.lineas.*.lote' => 'lote',
+            'movimiento.lineas.*.vence_at' => 'vencimiento',
+            'movimiento.lineas.*.lote_id' => 'lote',
         ];
     }
 }

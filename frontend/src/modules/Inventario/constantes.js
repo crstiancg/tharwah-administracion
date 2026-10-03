@@ -7,7 +7,7 @@ export const TIPOS = {
   entrada: {
     label: 'Entrada',
     titulo: 'Registrar entrada',
-    ayuda: 'Compra o reposición. El costo recalcula el costo promedio de cada variante.',
+    ayuda: 'Compra o reposición en tu sede. El costo recalcula el costo promedio de cada presentación.',
     endpoint: 'entradas',
     permiso: 'inventario.entradas',
     status: 'positive',
@@ -16,7 +16,7 @@ export const TIPOS = {
   salida: {
     label: 'Salida',
     titulo: 'Registrar salida',
-    ayuda: 'Merma, daño, regalo… Las ventas descontarán solas desde Pedidos.',
+    ayuda: 'Merma, daño, regalo… en tu sede. Las ventas descuentan solas desde Pedidos y el punto de venta.',
     endpoint: 'salidas',
     permiso: 'inventario.salidas',
     status: 'negative',
@@ -25,11 +25,23 @@ export const TIPOS = {
   ajuste: {
     label: 'Ajuste',
     titulo: 'Ajuste por conteo',
-    ayuda: 'Escribí el stock que contaste: el sistema registra la diferencia. Las variantes que coinciden no generan movimiento.',
+    ayuda: 'Escribí el stock que contaste en tu sede: el sistema registra la diferencia. Las presentaciones que coinciden no generan movimiento.',
     endpoint: 'ajustes',
     permiso: 'inventario.ajustes',
     status: 'info',
     icon: 'fact_check'
+  },
+  // Sólo acción: en el libro queda como una salida en el origen y una
+  // entrada en el destino (motivos traslado_salida / traslado_entrada).
+  traslado: {
+    label: 'Traslado',
+    titulo: 'Trasladar a otra sede',
+    ayuda: 'Envía mercadería de tu sede a otra. Sale de tu stock y entra en el de la sede de destino.',
+    endpoint: 'traslados',
+    permiso: 'inventario.traslados',
+    status: 'warning',
+    icon: 'local_shipping',
+    soloAccion: true
   }
 }
 

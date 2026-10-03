@@ -37,7 +37,7 @@ class ArchivosService
      * uno nuevo. Los existentes que no vienen se borran.
      *
      * Un `id` que no es de este modelo pero está en `$fuentes` se COPIA (así
-     * una foto del polo rojo talla 4 se reusa en la talla 6). Las fuentes se
+     * una foto del balde de 4 gl se reusa en el de 1 gl). Las fuentes se
      * cargan antes de tocar nada: si la dueña original se borra en el mismo
      * guardado, su archivo físico sigue en disco hasta el commit.
      *

@@ -9,7 +9,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Una variante vista desde inventario: qué es (producto, talla, color, SKU) y
+ * Una variante vista desde inventario: qué es (producto, presentación, color, SKU) y
  * cuánto hay. Sirve para el buscador de las líneas y para el historial.
  *
  * @mixin Variante
@@ -57,15 +57,20 @@ class VarianteStockResource extends JsonResource
             'id' => $this->id,
             'sku' => $this->sku,
             'codigo_barras' => $this->codigo_barras,
-            'stock' => $this->stock,
+            // El de la sede consultada (o el total, si no se pidió por sede).
+            'stock' => $this->stockVisible(),
+            'stock_total' => (float) $this->stock,
+            'stock_minimo' => $this->stock_minimo,
             'costo_promedio' => $this->costo_promedio,
             // Precio de venta HOY (con la mejor oferta vigente) y el de lista.
             // Sólo cuando se cargó el precio del producto.
             ...($this->conPrecio() ? $this->precioVigente() : []),
             'producto' => $this->whenLoaded('producto', fn () => $this->producto->only(['id', 'nombre'])),
-            'talla' => $this->whenLoaded('talla', fn () => $this->talla->nombre),
-            'color' => $this->whenLoaded('color', fn () => $this->color->only(['nombre', 'hexadecimal'])),
-            // Foto del color o, si no tiene, la del producto (punto de venta).
+            'maneja_lotes' => $this->whenLoaded('producto', fn () => (bool) $this->producto->maneja_lotes),
+            'presentacion' => $this->presentacion,
+            'unidad' => $this->whenLoaded('unidad', fn () => $this->unidad->only(['nombre', 'abreviatura', 'fraccionable'])),
+            'color' => $this->whenLoaded('color', fn () => $this->color?->only(['nombre', 'hexadecimal'])),
+            // Foto de la presentación o, si no tiene, la del producto (punto de venta).
             'miniatura_url' => $this->when($this->relationLoaded('portada'), fn () => $this->miniatura()),
         ];
     }

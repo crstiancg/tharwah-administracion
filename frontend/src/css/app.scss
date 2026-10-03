@@ -123,8 +123,21 @@ body.body--dark {
 // que sale: el resto de la app se oculta. Global y no scoped porque tiene que
 // apuntar a los hermanos del ticket dentro de <body>.
 .ticket-impresion,
-.etiquetas-impresion {
+.etiquetas-impresion,
+.documento-impresion {
   display: none;
+}
+
+// ── Documentos A4 (cotizaciones) ──
+// Mismo mecanismo que el ticket, en su propia página con nombre: A4 con
+// márgenes, sin tocar el rollo de 80 mm del ticket.
+@page documento-a4 {
+  size: A4;
+  margin: 14mm;
+}
+
+.documento-impresion {
+  page: documento-a4;
 }
 
 // ── Etiquetas con código de barras (ImpresionEtiquetas.vue) ──
@@ -179,12 +192,13 @@ body.body--dark {
     margin: 0;
   }
 
-  body > *:not(.ticket-impresion):not(.etiquetas-impresion) {
+  body > *:not(.ticket-impresion):not(.etiquetas-impresion):not(.documento-impresion) {
     display: none !important;
   }
 
   .ticket-impresion,
-  .etiquetas-impresion {
+  .etiquetas-impresion,
+  .documento-impresion {
     display: block;
   }
 

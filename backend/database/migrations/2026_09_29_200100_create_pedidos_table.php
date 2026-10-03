@@ -14,6 +14,8 @@ return new class extends Migration
             $table->string('codigo', 12)->nullable()->unique();
             // null = "Cliente varios" (venta rápida de mostrador).
             $table->foreignId('cliente_id')->nullable()->constrained('clientes')->restrictOnDelete();
+            // La sede que vende: de su stock sale la mercadería.
+            $table->foreignId('sede_id')->constrained('sedes')->restrictOnDelete();
             // pendiente → confirmado → entregado | cancelado
             $table->string('estado', 12)->index();
             $table->string('canal', 12);
@@ -34,7 +36,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('pedido_id')->constrained('pedidos')->cascadeOnDelete();
             $table->foreignId('variante_id')->constrained('variantes')->restrictOnDelete();
-            $table->unsignedInteger('cantidad');
+            $table->decimal('cantidad', 12, 3);
             // Precio y costo CONGELADOS al momento de la venta: si mañana
             // cambia el precio del producto, este pedido no cambia. El costo
             // se toma al confirmar (costo promedio de ese momento).

@@ -52,14 +52,16 @@
             {{ p.nombre }}
           </div>
           <div class="tarjeta__categoria">
-            {{ p.categoria?.nombre }}
+            <template v-if="p.marca">
+              {{ p.marca.nombre }} ·
+            </template>{{ p.categoria?.nombre }}
           </div>
 
           <div class="tarjeta__variantes">
             <span
-              v-for="t in tallasDisponibles(p)"
+              v-for="t in presentacionesDisponibles(p)"
               :key="t"
-              class="tarjeta__talla"
+              class="tarjeta__presentacion"
             >{{ t }}</span>
             <span
               v-for="c in coloresDisponibles(p)"
@@ -132,7 +134,7 @@ import { formatearFechaHora } from '@/utils/fechas'
 import { formatearPrecio } from '@/utils/moneda'
 
 const props = defineProps({
-  // { categoria_id, talla_id, color_id, con_stock }
+  // { categoria_id, marca_id, color_id, con_stock }
   filtros: {
     type: Object,
     required: true
@@ -169,14 +171,14 @@ async function cargar (numero = 1) {
   const consulta = ++ultimaConsulta
   cargando.value = true
   try {
-    const { categoria_id: categoriaId, talla_id: tallaId, color_id: colorId, con_stock: conStock } = props.filtros
+    const { categoria_id: categoriaId, marca_id: marcaId, color_id: colorId, con_stock: conStock } = props.filtros
     const params = {
       page: numero,
       rowsPerPage: POR_PAGINA,
       order_by: props.orden,
       ...(props.search && { search: props.search }),
       ...(categoriaId && { categoria_id: categoriaId }),
-      ...(tallaId && { talla_id: tallaId }),
+      ...(marcaId && { marca_id: marcaId }),
       ...(colorId && { color_id: colorId }),
       ...(conStock && { con_stock: 1 })
     }
@@ -218,9 +220,10 @@ function conStock (p) {
   return p.variantes.filter((v) => v.stock > 0)
 }
 
-// Tallas en su orden de exhibición (ya vienen así), sin repetir.
-function tallasDisponibles (p) {
-  return [...new Set(conStock(p).map((v) => v.talla?.nombre).filter(Boolean))]
+// Presentaciones con stock en el orden en que se cargaron, sin repetir (la
+// misma en dos colores sale una vez). Hasta 4: la tarjeta no es la ficha.
+function presentacionesDisponibles (p) {
+  return [...new Set(conStock(p).map((v) => v.presentacion).filter(Boolean))].slice(0, 4)
 }
 
 function coloresDisponibles (p) {
@@ -413,7 +416,11 @@ defineExpose({ refrescar: () => cargar(1) })
   margin-top: 2px;
 }
 
-.tarjeta__talla {
+.tarjeta__presentacion {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   padding: 0 5px;
   border: 1px solid var(--app-border-control);
   border-radius: 4px;

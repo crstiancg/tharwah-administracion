@@ -36,6 +36,7 @@ class CajaResource extends JsonResource
         return [
             'id' => $this->id,
             'estado' => $this->estado,
+            'sede' => $this->whenLoaded('sede', fn () => $this->sede?->only(['id', 'nombre'])),
             'monto_apertura' => $this->monto_apertura,
             'abierta_at' => $this->abierta_at?->toIso8601String(),
             'abierta_por' => $this->whenLoaded('abiertaPor', fn () => $this->abiertaPor?->only(['id', 'name'])),

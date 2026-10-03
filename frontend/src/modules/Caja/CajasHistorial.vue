@@ -105,6 +105,7 @@ import CajaResumen from './CajaResumen.vue'
 const userStore = useUserStore()
 
 const columns = [
+  { name: 'sede', label: 'Sede', field: (row) => row.sede?.nombre ?? '—', align: 'left' },
   { name: 'apertura', label: 'Apertura', field: 'abierta_at', align: 'left' },
   { name: 'cierre', label: 'Cierre', field: 'cerrada_at', align: 'left' },
   { name: 'monto_apertura', label: 'Inicial', field: (row) => formatearPrecio(row.monto_apertura), align: 'right', classes: 'text-mono' },

@@ -21,7 +21,7 @@ class EtiquetaController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Variante::query()
-            ->with(['producto:id,nombre', 'talla:id,nombre,orden', 'color:id,nombre,hexadecimal']);
+            ->with(['producto:id,nombre', 'unidad:id,abreviatura', 'color:id,nombre,hexadecimal']);
 
         if ($request->filled('search')) {
             $term = '%'.$request->input('search').'%';
@@ -31,14 +31,13 @@ class EtiquetaController extends Controller
                 ->orWhere('productos.nombre', 'like', $term));
         }
 
-        // Por nombre de producto y, dentro, en el orden de las tallas.
+        // Por nombre de producto y, dentro, en el orden en que se cargaron.
         $query->join('productos', 'productos.id', '=', 'variantes.producto_id')
-            ->join('tallas', 'tallas.id', '=', 'variantes.talla_id')
             ->select('variantes.*')
+            ->when($request->user()->sede_id, fn ($q, $sedeId) => $q->conStockDeSede($sedeId))
             ->orderBy('productos.nombre')
             ->orderBy('variantes.producto_id')
-            ->orderBy('tallas.orden')
-            ->orderBy('variantes.color_id');
+            ->orderBy('variantes.id');
 
         return $this->generateViewSetList($request, $query, ['producto_id'], [], [], EtiquetaResource::class);
     }
