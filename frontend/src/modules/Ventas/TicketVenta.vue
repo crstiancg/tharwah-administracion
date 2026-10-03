@@ -7,11 +7,16 @@
       <div v-if="TIENDA.ruc">
         RUC {{ TIENDA.ruc }}
       </div>
-      <div v-if="TIENDA.direccion">
-        {{ TIENDA.direccion }}
+      <!-- La dirección y el teléfono de la sede que vendió; si no los
+           tiene cargados, los generales de la tienda. -->
+      <div v-if="pedido.sede">
+        {{ pedido.sede.nombre }}
       </div>
-      <div v-if="TIENDA.telefono">
-        Tel. {{ TIENDA.telefono }}
+      <div v-if="pedido.sede?.direccion || TIENDA.direccion">
+        {{ pedido.sede?.direccion || TIENDA.direccion }}
+      </div>
+      <div v-if="pedido.sede?.telefono || TIENDA.telefono">
+        Tel. {{ pedido.sede?.telefono || TIENDA.telefono }}
       </div>
     </header>
 
@@ -46,7 +51,7 @@
       class="ticket__item"
     >
       <div>
-        {{ item.variante.producto?.nombre }} T.{{ item.variante.talla }} {{ item.variante.color?.nombre }}
+        {{ item.variante.producto?.nombre }} {{ item.variante.presentacion }} {{ item.variante.color?.nombre }}
       </div>
       <div class="ticket__fila">
         <span>{{ item.cantidad }} x {{ formatearPrecio(item.precio_unitario) }}</span>

@@ -24,16 +24,20 @@ class ProductoController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Producto::query()
-            ->with(['categoria:id,nombre', 'portada'])
+            ->with(['categoria:id,nombre', 'marca:id,nombre', 'portada'])
             ->withCount('variantes')
             ->withSum('variantes as stock_total', 'stock');
 
-        // Filtrar por "Ropa" trae también lo de "Ropa › Niños › Polos".
+        // Filtrar por "Impermeabilizantes" trae también lo de sus subcategorías.
         if ($request->filled('categoria_id')) {
             $categoria = Categoria::find($request->integer('categoria_id'));
             $query->whereIn('categoria_id', $categoria
                 ? [$categoria->id, ...$categoria->descendientesIds()]
                 : []);
+        }
+
+        if ($request->filled('marca_id')) {
+            $query->where('marca_id', $request->integer('marca_id'));
         }
 
         // Búsqueda por nombre o por SKU de cualquiera de sus variantes. Va
@@ -88,7 +92,7 @@ class ProductoController extends Controller
     {
         if ($producto->variantes()->where('stock', '!=', 0)->exists()) {
             return response()->json([
-                'message' => 'No se puede eliminar: tiene variantes con stock. Desactívelo en su lugar.',
+                'message' => 'No se puede eliminar: tiene presentaciones con stock. Desactívelo en su lugar.',
             ], 409);
         }
 
@@ -140,7 +144,7 @@ class ProductoController extends Controller
     {
         $lineas = [];
         foreach (array_values($datos['variantes']) as $i => $fila) {
-            $cantidad = (int) ($fila['stock_inicial'] ?? 0);
+            $cantidad = round((float) ($fila['stock_inicial'] ?? 0), 3);
             if (! empty($fila['id']) || $cantidad <= 0) {
                 continue;
             }
@@ -156,7 +160,10 @@ class ProductoController extends Controller
             return;
         }
 
+        // Entra en la sede de quien lo da de alta (el request ya exigió que
+        // tenga una).
         $this->inventario->entrada(
+            $request->user()->sedeOperativa(),
             $lineas,
             $datos['referencia_compra'] ?? null,
             null,
@@ -195,9 +202,7 @@ class ProductoController extends Controller
 
         $guardadas = [];
         foreach (array_values($variantes) as $datos) {
-            $campos = collect($datos)->only(['talla_id', 'color_id', 'sku', 'precio'])->all();
-            // En multipart llegan como texto: se guardan como número.
-            $campos['medidas'] = array_map('floatval', $datos['medidas'] ?? []) ?: null;
+            $campos = collect($datos)->only(['presentacion', 'unidad_id', 'color_id', 'sku', 'precio', 'stock_minimo'])->all();
 
             $variante = empty($datos['id'])
                 ? $producto->variantes()->create($campos)
@@ -235,16 +240,12 @@ class ProductoController extends Controller
     {
         return (new ProductoResource($producto->load([
             'categoria:id,nombre',
+            'marca:id,nombre',
             'archivos',
-            'variantes' => fn ($q) => $q
-                ->join('tallas', 'tallas.id', '=', 'variantes.talla_id')
-                ->orderBy('tallas.orden')
-                ->orderBy('variantes.id')
-                ->select('variantes.*')
-                // Después del select: antes, select('variantes.*') lo pisa.
-                ->withExists('movimientos'),
-            'variantes.talla:id,nombre,orden',
+            'variantes' => fn ($q) => $q->orderBy('variantes.id')->withExists('movimientos'),
+            'variantes.unidad:id,nombre,abreviatura,fraccionable',
             'variantes.color:id,nombre,hexadecimal',
+            'variantes.stocks.sede:id,nombre',
             'variantes.archivos',
         ])))->resolve(request());
     }

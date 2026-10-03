@@ -10,6 +10,11 @@ class InventarioService {
     return (await api.get('api/inventario', config)).data
   }
 
+  // Lotes con stock (filtros: sede_id, variante_id, estado, search).
+  static async lotes (config) {
+    return (await api.get('api/inventario/lotes', config)).data
+  }
+
   // Buscador de variantes para las líneas de un movimiento.
   static async variantes (config) {
     return (await api.get('api/inventario/variantes', config)).data

@@ -47,25 +47,28 @@
     <section class="filtros__seccion">
       <h3 class="filtros__titulo">
         <q-icon
-          name="straighten"
+          name="verified"
           size="14px"
-        />Talla
+        />Marca
       </h3>
       <div class="filtros__chips">
         <button
-          v-for="t in tallas"
-          :key="t.id"
+          v-for="m in marcas"
+          :key="m.id"
           type="button"
-          :class="['filtros__chip', 'filtros__chip--talla', { 'filtros__chip--activo': model.talla_id === t.id }]"
-          :aria-pressed="String(model.talla_id === t.id)"
-          @click="alternar('talla_id', t.id)"
+          :class="['filtros__chip', { 'filtros__chip--activo': model.marca_id === m.id }]"
+          :aria-pressed="String(model.marca_id === m.id)"
+          @click="alternar('marca_id', m.id)"
         >
-          {{ t.nombre }}
+          {{ m.nombre }}
         </button>
       </div>
     </section>
 
-    <section class="filtros__seccion">
+    <section
+      v-if="colores.length"
+      class="filtros__seccion"
+    >
       <h3 class="filtros__titulo">
         <q-icon
           name="palette"
@@ -95,7 +98,7 @@ import { computed, onMounted, ref } from 'vue'
 import { opcionesPadre } from '@/modules/Categorias/arbol'
 import CategoriaService from '@/services/CategoriaService'
 import ColorService from '@/services/ColorService'
-import TallaService from '@/services/TallaService'
+import MarcaService from '@/services/MarcaService'
 
 /**
  * Sidebar de filtros del catálogo. Un clic filtra; otro clic en el mismo lo
@@ -104,17 +107,17 @@ import TallaService from '@/services/TallaService'
 const model = defineModel({ type: Object, required: true })
 
 const categoriasLista = ref([])
-const tallas = ref([])
+const marcas = ref([])
 const colores = ref([])
 
-// Chip con el nombre corto; la ruta completa ("Ropa › Niños") en el título.
+// Chip con el nombre corto; la ruta completa ("Impermeabilizantes › Techos") en el título.
 const categorias = computed(() => {
   const opciones = opcionesPadre(categoriasLista.value)
   return opciones.map((o) => ({ id: o.value, label: o.label, corto: o.label.split(' › ').pop() }))
 })
 
 const hayFiltros = computed(() =>
-  Boolean(model.value.categoria_id || model.value.talla_id || model.value.color_id || !model.value.con_stock))
+  Boolean(model.value.categoria_id || model.value.marca_id || model.value.color_id || !model.value.con_stock))
 
 function cambiar (clave, valor) {
   model.value = { ...model.value, [clave]: valor }
@@ -125,18 +128,18 @@ function alternar (clave, id) {
 }
 
 function limpiar () {
-  model.value = { categoria_id: null, talla_id: null, color_id: null, con_stock: true }
+  model.value = { categoria_id: null, marca_id: null, color_id: null, con_stock: true }
 }
 
 onMounted(async () => {
   const todos = { params: { rowsPerPage: 0 } }
   const [c, t, co] = await Promise.all([
     CategoriaService.getData(todos),
-    TallaService.getData(todos),
+    MarcaService.getData({ params: { rowsPerPage: 0, order_by: 'nombre', activo: 1 } }),
     ColorService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } })
   ])
   categoriasLista.value = c.data
-  tallas.value = t.data
+  marcas.value = t.data
   colores.value = co.data
 })
 </script>
@@ -211,11 +214,6 @@ onMounted(async () => {
   font-size: 12px;
   color: var(--app-ink);
   cursor: pointer;
-
-  &--talla {
-    min-width: 36px;
-    font-weight: 600;
-  }
 
   &--activo {
     border-color: $primary;

@@ -27,6 +27,11 @@
         :options="categoriaOptions"
       />
       <AppFilterPill
+        v-model="marcaFilter"
+        label="Marca"
+        :options="marcaOptions"
+      />
+      <AppFilterPill
         v-model="activoFilter"
         label="Estado"
         :options="activoOptions"
@@ -221,6 +226,7 @@ import AppFilterPill from '@/components/AppFilterPill.vue'
 import AppPageHeader from '@/components/AppPageHeader.vue'
 import AppTable from '@/components/AppTable.vue'
 import CategoriaService from '@/services/CategoriaService'
+import MarcaService from '@/services/MarcaService'
 import ProductoService from '@/services/ProductoService'
 import { useUserStore } from '@/stores/user-store'
 import { formatearPrecio } from '@/utils/moneda'
@@ -232,9 +238,10 @@ const userStore = useUserStore()
 
 const columns = [
   { name: 'nombre', label: 'Producto', field: 'nombre', align: 'left', sortable: true },
+  { name: 'marca', label: 'Marca', field: (row) => row.marca?.nombre, align: 'left' },
   { name: 'categoria', label: 'Categoría', field: (row) => row.categoria?.nombre, align: 'left' },
   { name: 'precio', label: 'Precio base', field: 'precio', align: 'right', sortable: true },
-  { name: 'stock', label: 'Stock', field: 'stock_total', align: 'right' },
+  { name: 'stock', label: 'Stock total', field: 'stock_total', align: 'right' },
   { name: 'activo', label: 'Estado', field: 'activo', align: 'left' },
   { name: 'acciones', label: '', field: 'id', align: 'right' }
 ]
@@ -243,6 +250,7 @@ const columns = [
 const search = ref('')
 const busqueda = ref('')
 const categoriaFilter = ref(null)
+const marcaFilter = ref(null)
 const activoFilter = ref(null)
 
 // El buscador espera a que se deje de tipear para no pegarle a la API por tecla.
@@ -259,17 +267,24 @@ const categoriaOptions = computed(() => [
   ...opcionesPadre(categorias.value)
 ])
 
+const marcas = ref([])
+const marcaOptions = computed(() => [
+  { label: 'Todas', value: null },
+  ...marcas.value.map((m) => ({ label: m.nombre, value: m.id }))
+])
+
 const activoOptions = [
   { label: 'Todos', value: null },
   { label: 'Activos', value: 1 },
   { label: 'Inactivos', value: 0 }
 ]
 
-const hayFiltros = computed(() => Boolean(search.value || categoriaFilter.value !== null || activoFilter.value !== null))
+const hayFiltros = computed(() => Boolean(search.value || categoriaFilter.value !== null || marcaFilter.value !== null || activoFilter.value !== null))
 
 function limpiarFiltros () {
   search.value = ''
   categoriaFilter.value = null
+  marcaFilter.value = null
   activoFilter.value = null
 }
 
@@ -278,6 +293,7 @@ function limpiarFiltros () {
 const filtroTabla = computed(() => JSON.stringify({
   search: busqueda.value,
   categoria_id: categoriaFilter.value,
+  marca_id: marcaFilter.value,
   activo: activoFilter.value
 }))
 
@@ -294,6 +310,7 @@ async function onRequest ({ pagination: requested }) {
   try {
     const params = { rowsPerPage, page, search: busqueda.value, order_by: descending ? `-${sortBy}` : sortBy }
     if (categoriaFilter.value !== null) params.categoria_id = categoriaFilter.value
+    if (marcaFilter.value !== null) params.marca_id = marcaFilter.value
     if (activoFilter.value !== null) params.activo = activoFilter.value
 
     const { data, total = 0 } = await ProductoService.getData({ params })
@@ -307,7 +324,12 @@ async function onRequest ({ pagination: requested }) {
 
 onMounted(async () => {
   tableRef.value.requestServerInteraction()
-  categorias.value = (await CategoriaService.getData({ params: { rowsPerPage: 0 } })).data
+  const [c, m] = await Promise.all([
+    CategoriaService.getData({ params: { rowsPerPage: 0 } }),
+    MarcaService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } })
+  ])
+  categorias.value = c.data
+  marcas.value = m.data
 })
 
 // ── Crear / editar en diálogo ──

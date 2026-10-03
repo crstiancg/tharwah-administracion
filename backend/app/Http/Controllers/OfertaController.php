@@ -20,9 +20,8 @@ class OfertaController extends Controller
 {
     private const RELACIONES = [
         'productos:id,nombre,precio',
-        'variantes:id,producto_id,sku,talla_id,color_id',
+        'variantes:id,producto_id,sku,presentacion,color_id',
         'variantes.producto:id,nombre,precio',
-        'variantes.talla:id,nombre',
         'variantes.color:id,nombre,hexadecimal',
         'categorias:id,nombre',
     ];

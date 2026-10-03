@@ -7,13 +7,15 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Validation\ValidationException;
 use Laravel\Passport\Contracts\OAuthenticatable;
 use Laravel\Passport\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'username', 'email', 'password', 'active'])]
+#[Fillable(['name', 'username', 'email', 'password', 'active', 'sede_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements OAuthenticatable
 {
@@ -38,6 +40,26 @@ class User extends Authenticatable implements OAuthenticatable
             'password' => 'hashed',
             'active' => 'boolean',
         ];
+    }
+
+    public function sede(): BelongsTo
+    {
+        return $this->belongsTo(Sede::class);
+    }
+
+    /**
+     * La sede en la que opera (POS, caja, inventario). Sin sede asignada no
+     * se mueve stock ni dinero: un 409 que el front muestra tal cual.
+     */
+    public function sedeOperativa(): int
+    {
+        if (! $this->sede_id) {
+            throw ValidationException::withMessages([
+                'sede' => 'Tu usuario no tiene una sede asignada: pedile a un administrador que te asigne una.',
+            ])->status(409);
+        }
+
+        return $this->sede_id;
     }
 
     /**

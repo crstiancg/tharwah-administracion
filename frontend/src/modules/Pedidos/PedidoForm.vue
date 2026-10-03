@@ -114,7 +114,7 @@
                       {{ item.variante.producto?.nombre }}
                     </div>
                     <div class="pedido-form__detalle">
-                      Talla {{ item.variante.talla }} · {{ item.variante.color?.nombre }} ·
+                      {{ item.variante.presentacion }}<template v-if="item.variante.color"> · {{ item.variante.color.nombre }}</template> ·
                       <span class="text-mono">{{ item.variante.sku }}</span>
                     </div>
                   </div>
@@ -132,8 +132,9 @@
                   v-model="item.cantidad"
                   :aria-label="`Cantidad de ${item.variante.sku}`"
                   type="number"
-                  min="1"
-                  step="1"
+                  min="0"
+                  :step="item.variante.unidad?.fraccionable ? '0.001' : '1'"
+                  :suffix="item.variante.unidad?.abreviatura"
                   dense
                   outlined
                   hide-bottom-space
@@ -149,7 +150,7 @@
                   v-if="!errorDe(i, 'cantidad') && faltaStock(item)"
                   class="pedido-form__aviso"
                 >
-                  Hay {{ item.variante.stock }} en stock
+                  Hay {{ item.variante.stock }} en tu sede
                 </p>
               </td>
 

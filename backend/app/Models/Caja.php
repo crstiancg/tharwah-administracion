@@ -31,6 +31,11 @@ class Caja extends Model
         ];
     }
 
+    public function sede(): BelongsTo
+    {
+        return $this->belongsTo(Sede::class);
+    }
+
     public function pagos(): HasMany
     {
         return $this->hasMany(Pago::class);

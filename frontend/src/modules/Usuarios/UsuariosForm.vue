@@ -32,7 +32,7 @@
         label="Email (opcional)"
         type="email"
         icon="mail_outline"
-        placeholder="ana@forkids.com"
+        placeholder="ana@tharwah.com"
         autocomplete="off"
         :error="form.errors[`${PATH}.email`]"
         @change="form.validate(`${PATH}.email`)"
@@ -55,6 +55,26 @@
           <span class="usuario-form__hint">Dejala vacía para no cambiarla</span>
         </template>
       </AppTextField>
+
+      <q-select
+        v-model="form.usuario.sede_id"
+        :options="opcionesSedes"
+        label="Sede"
+        :error="Boolean(form.errors[`${PATH}.sede_id`])"
+        :error-message="form.errors[`${PATH}.sede_id`]"
+        hint="Donde vende, cobra y mueve stock"
+        clearable
+        dense
+        outlined
+        emit-value
+        map-options
+        class="usuario-form__sede"
+        @update:model-value="form.validate(`${PATH}.sede_id`)"
+      >
+        <template #prepend>
+          <q-icon name="storefront" />
+        </template>
+      </q-select>
     </div>
 
     <!-- ── Accesos: roles + permisos directos ── -->
@@ -180,6 +200,7 @@ import AppTextField from '@/components/AppTextField.vue'
 import PermisosChecklist from '@/modules/Permisos/PermisosChecklist.vue'
 import PermisoService from '@/services/PermisoService'
 import RolService from '@/services/RolService'
+import SedeService from '@/services/SedeService'
 import UsuarioService from '@/services/UsuarioService'
 import formUsuario from './FormUsuario'
 
@@ -202,7 +223,13 @@ const form = props.id
 // ── Catálogos ──
 const roles = ref([])
 const permisos = ref([])
+const sedes = ref([])
 const cargando = ref(true)
+
+// Las activas y, si el usuario está en una que se desactivó, también esa.
+const opcionesSedes = computed(() => sedes.value
+  .filter((s) => s.activo || s.id === form.usuario.sede_id)
+  .map((s) => ({ value: s.id, label: s.nombre })))
 
 // Los permisos que el usuario recibe por sus roles. Sólo lectura: un permiso
 // heredado se quita desde el rol, no desde acá.
@@ -219,24 +246,30 @@ const heredados = computed(() => {
 onMounted(async () => {
   const params = { params: { rowsPerPage: 0, order_by: 'name' } }
 
-  const [catalogoRoles, catalogoPermisos, usuario] = await Promise.all([
+  const [catalogoRoles, catalogoPermisos, catalogoSedes, usuario] = await Promise.all([
     RolService.getData(params),
     PermisoService.getData(params),
+    SedeService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } }),
     props.id ? UsuarioService.get(props.id) : null
   ])
 
   roles.value = catalogoRoles.data
   permisos.value = catalogoPermisos.data
+  sedes.value = catalogoSedes.data
   cargando.value = false
 
+  // Con una sola sede (lo normal al empezar), ya viene elegida.
+  if (!usuario && sedes.value.length === 1) form.usuario.sede_id = sedes.value[0].id
+
   if (usuario) {
-    const { name, username, email } = usuario.user
+    const { name, username, email, sede_id: sedeId } = usuario.user
     form.setData({
       [PATH]: {
         name,
         username,
         email: email ?? '',
         password: '',
+        sede_id: sedeId,
         rolesSelected: usuario.rolesSelected,
         permisosSelected: usuario.permisosSelected
       }
@@ -258,6 +291,10 @@ defineExpose({ form, submit })
 </script>
 
 <style lang="scss" scoped>
+.usuario-form__sede :deep(.q-field__control) {
+  border-radius: 10px;
+}
+
 .usuario-form {
   display: flex;
   flex-direction: column;

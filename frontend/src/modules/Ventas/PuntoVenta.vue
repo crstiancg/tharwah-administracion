@@ -160,10 +160,10 @@
       />
     </div>
 
-    <!-- ── Talla × color ── -->
+    <!-- ── Presentación ── -->
     <AppDialog
       v-model="selectorDialog"
-      title="Elegí talla y color"
+      title="Elegí la presentación"
       size="lg"
     >
       <!-- key: cada producto arranca con su propia foto y color. -->
@@ -255,7 +255,7 @@ function alternarFiltros () {
 }
 
 // ── Catálogo ──
-const filtros = ref({ categoria_id: null, talla_id: null, color_id: null, con_stock: true })
+const filtros = ref({ categoria_id: null, marca_id: null, color_id: null, con_stock: true })
 const orden = ref('vendidos')
 const vista = ref('grid')
 const busqueda = ref('')
@@ -284,7 +284,7 @@ const productoElegido = ref(null)
 const selectorDialog = ref(false)
 
 // Un producto con una sola variante vendible entra directo; si tiene varias,
-// se elige talla × color.
+// se elige la presentación.
 function elegirProducto (producto) {
   const vendibles = producto.variantes.filter((v) => v.stock > pos.cantidadDeVariante(v.id))
   if (producto.variantes.length === 1 && vendibles.length === 1) {

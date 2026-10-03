@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Pago;
 use App\Models\Variante;
+use App\Support\Cantidades;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -61,7 +62,7 @@ class RegistrarVentaRequest extends FormRequest
 
         foreach (array_keys((array) $this->input('venta.items', [])) as $i) {
             $rules["venta.items.{$i}.variante_id"] = ['required', 'integer', 'exists:variantes,id', $this->varianteUnica($i), $this->productoActivo()];
-            $rules["venta.items.{$i}.cantidad"] = ['required', 'integer', 'min:1', 'max:10000'];
+            $rules["venta.items.{$i}.cantidad"] = [...Cantidades::positiva(10000), Cantidades::segunUnidad($this->input("venta.items.{$i}.variante_id"))];
             $rules["venta.items.{$i}.precio_unitario"] = ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
         }
 
@@ -82,7 +83,7 @@ class RegistrarVentaRequest extends FormRequest
     private function total(): float
     {
         $subtotal = collect((array) $this->input('venta.items', []))
-            ->sum(fn ($i) => round((int) ($i['cantidad'] ?? 0) * (float) ($i['precio_unitario'] ?? 0), 2));
+            ->sum(fn ($i) => round((float) ($i['cantidad'] ?? 0) * (float) ($i['precio_unitario'] ?? 0), 2));
 
         return round($subtotal - (float) $this->input('venta.descuento', 0), 2);
     }
@@ -116,7 +117,7 @@ class RegistrarVentaRequest extends FormRequest
                 ->exists();
 
             if (! $activo) {
-                $fail('El producto de esta variante está desactivado.');
+                $fail('El producto de esta presentación está desactivado.');
             }
         };
     }
@@ -129,7 +130,7 @@ class RegistrarVentaRequest extends FormRequest
                     return;
                 }
                 if (($otro['variante_id'] ?? null) == $value) {
-                    $fail('Esta variante ya está en el carrito: sumá la cantidad ahí.');
+                    $fail('Esta presentación ya está en el carrito: sumá la cantidad ahí.');
 
                     return;
                 }

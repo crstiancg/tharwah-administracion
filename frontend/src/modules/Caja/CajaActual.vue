@@ -1,7 +1,7 @@
 <template>
   <div class="app-list-page">
     <AppPageHeader
-      title="Caja"
+      :title="`Caja · ${userStore.sede?.nombre ?? 'sin sede'}`"
       :subtitle="subtitulo"
     >
       <template #actions>

@@ -5,7 +5,7 @@
 const env = import.meta.env
 
 export const TIENDA = {
-  nombre: env.VITE_APP_TIENDA_NOMBRE || 'For Kids',
+  nombre: env.VITE_APP_TIENDA_NOMBRE || 'Tharwah',
   ruc: env.VITE_APP_TIENDA_RUC || '',
   direccion: env.VITE_APP_TIENDA_DIRECCION || '',
   telefono: env.VITE_APP_TIENDA_TELEFONO || '',

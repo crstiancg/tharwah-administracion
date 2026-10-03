@@ -9,8 +9,8 @@
       <AppTextField
         v-model="form.producto.nombre"
         label="Nombre"
-        icon="checkroom"
-        placeholder="Polo básico"
+        icon="inventory_2"
+        placeholder="Sikaflex 1A Plus"
         maxlength="120"
         class="producto-form__grow"
         :error="form.errors[`${PATH}.nombre`]"
@@ -63,6 +63,37 @@
     </div>
 
     <div class="producto-form__row producto-form__row--end">
+      <div class="producto-form__field producto-form__grow">
+        <label
+          :id="`${uid}-marca`"
+          class="producto-form__label"
+        >Marca</label>
+        <q-select
+          v-model="form.producto.marca_id"
+          :options="opcionesMarcas"
+          :aria-labelledby="`${uid}-marca`"
+          :loading="cargando"
+          :error="Boolean(form.errors[`${PATH}.marca_id`])"
+          :error-message="form.errors[`${PATH}.marca_id`]"
+          placeholder="Elegí una marca"
+          dense
+          outlined
+          hide-bottom-space
+          no-error-icon
+          emit-value
+          map-options
+          class="producto-form__control"
+          @update:model-value="form.validate(`${PATH}.marca_id`)"
+        >
+          <template #prepend>
+            <q-icon
+              name="verified"
+              class="producto-form__icon"
+            />
+          </template>
+        </q-select>
+      </div>
+
       <AppTextField
         v-model="form.producto.precio"
         label="Precio base"
@@ -82,7 +113,30 @@
         color="primary"
         class="producto-form__toggle"
       />
+
+      <!-- Cambiarlo con stock dejaría unidades sin lote: el backend lo
+           rechaza y acá se avisa antes. -->
+      <q-toggle
+        v-model="form.producto.maneja_lotes"
+        label="Maneja lotes y vencimiento"
+        color="primary"
+        class="producto-form__toggle"
+        :disable="tieneStock"
+        @update:model-value="form.validate(`${PATH}.maneja_lotes`)"
+      >
+        <q-tooltip v-if="tieneStock">
+          Sólo se puede cambiar con el producto sin stock
+        </q-tooltip>
+      </q-toggle>
     </div>
+
+    <p
+      v-if="form.errors[`${PATH}.maneja_lotes`]"
+      class="producto-form__error"
+      role="alert"
+    >
+      {{ form.errors[`${PATH}.maneja_lotes`] }}
+    </p>
 
     <AppTextField
       v-model="form.producto.descripcion"
@@ -102,67 +156,28 @@
         :errores="erroresDe(`${PATH}.archivos`)"
       />
       <p class="producto-form__hint">
-        Fotos generales (la primera es la portada). Las de cada color van en su variante.
+        Fotos generales (la primera es la portada). Las de cada presentación van en su fila.
       </p>
     </div>
 
-    <!-- ── Variantes ── -->
+    <!-- ── Presentaciones ── -->
     <section class="producto-form__seccion">
-      <header>
-        <h3 class="producto-form__title">
-          Variantes
-          <span class="producto-form__count">{{ form.producto.variantes.length }}</span>
-        </h3>
-        <p class="producto-form__hint">
-          Cada combinación de talla y color tiene su SKU, sus fotos y su stock. El stock se carga desde Inventario.
-        </p>
-      </header>
-
-      <!-- Generador: elegir varias tallas y colores y crear todas las combinaciones. -->
-      <div class="producto-form__generador">
-        <q-select
-          v-model="tallasElegidas"
-          :options="opcionesTallas"
-          label="Tallas"
-          multiple
-          use-chips
-          dense
-          outlined
-          emit-value
-          map-options
-          class="producto-form__control producto-form__grow"
-        />
-        <q-select
-          v-model="coloresElegidos"
-          :options="opcionesColores"
-          label="Colores"
-          multiple
-          use-chips
-          dense
-          outlined
-          emit-value
-          map-options
-          class="producto-form__control producto-form__grow"
-        >
-          <template #option="scope">
-            <q-item v-bind="scope.itemProps">
-              <q-item-section side>
-                <span
-                  class="producto-form__swatch"
-                  :style="{ background: scope.opt.hexadecimal }"
-                />
-              </q-item-section>
-              <q-item-section>{{ scope.opt.label }}</q-item-section>
-            </q-item>
-          </template>
-        </q-select>
+      <header class="producto-form__seccionHead">
+        <div>
+          <h3 class="producto-form__title">
+            Presentaciones
+            <span class="producto-form__count">{{ form.producto.variantes.length }}</span>
+          </h3>
+          <p class="producto-form__hint">
+            Cada presentación (cartucho, galón, balde, bolsa…) tiene su SKU, su precio, sus fotos y su stock. El color es opcional.
+          </p>
+        </div>
         <AppButton
-          label="Agregar combinaciones"
+          label="Agregar presentación"
           icon="add"
-          :disable="!tallasElegidas.length || !coloresElegidos.length"
-          @click="agregarCombinaciones"
+          @click="agregarPresentacion"
         />
-      </div>
+      </header>
 
       <p
         v-if="form.errors[`${PATH}.variantes`]"
@@ -178,10 +193,12 @@
       >
         <div class="producto-form__tabla">
           <div class="producto-form__fila producto-form__fila--head">
-            <span>Talla</span>
+            <span>Presentación</span>
+            <span>Unidad</span>
             <span>Color</span>
             <span>SKU</span>
             <span>Precio</span>
+            <span>Stock mín.</span>
             <span>Fotos</span>
             <span class="text-right">{{ hayNuevas ? 'Stock / inicial' : 'Stock' }}</span>
             <span />
@@ -192,12 +209,28 @@
             :key="variante.uid"
           >
             <div class="producto-form__fila">
+              <q-input
+                v-model="variante.presentacion"
+                :aria-label="`Presentación ${i + 1}`"
+                :error="Boolean(errorDe(i, 'presentacion'))"
+                :error-message="errorDe(i, 'presentacion')"
+                placeholder="Balde 4 gl"
+                maxlength="60"
+                dense
+                outlined
+                hide-bottom-space
+                no-error-icon
+                class="producto-form__control"
+                @update:model-value="refrescarSku(variante)"
+                @change="form.validate(`${PATH}.variantes.${i}.presentacion`)"
+              />
+
               <q-select
-                v-model="variante.talla_id"
-                :options="opcionesTallas"
-                :aria-label="`Talla de la variante ${i + 1}`"
-                :error="Boolean(errorDe(i, 'talla_id'))"
-                :error-message="errorDe(i, 'talla_id')"
+                v-model="variante.unidad_id"
+                :options="opcionesUnidades"
+                :aria-label="`Unidad de la presentación ${i + 1}`"
+                :error="Boolean(errorDe(i, 'unidad_id'))"
+                :error-message="errorDe(i, 'unidad_id')"
                 dense
                 outlined
                 hide-bottom-space
@@ -205,15 +238,17 @@
                 emit-value
                 map-options
                 class="producto-form__control"
-                @update:model-value="cambioTalla(variante, i)"
+                @update:model-value="form.validate(`${PATH}.variantes.${i}.unidad_id`)"
               />
 
               <q-select
                 v-model="variante.color_id"
                 :options="opcionesColores"
-                :aria-label="`Color de la variante ${i + 1}`"
+                :aria-label="`Color de la presentación ${i + 1}`"
                 :error="Boolean(errorDe(i, 'color_id'))"
                 :error-message="errorDe(i, 'color_id')"
+                placeholder="—"
+                clearable
                 dense
                 outlined
                 hide-bottom-space
@@ -223,7 +258,10 @@
                 class="producto-form__control"
                 @update:model-value="cambioColor(variante, i)"
               >
-                <template #prepend>
+                <template
+                  v-if="variante.color_id"
+                  #prepend
+                >
                   <span
                     class="producto-form__swatch"
                     :style="{ background: colorPorId.get(variante.color_id)?.hexadecimal ?? 'transparent' }"
@@ -244,7 +282,7 @@
 
               <q-input
                 :model-value="variante.sku"
-                :aria-label="`SKU de la variante ${i + 1}`"
+                :aria-label="`SKU de la presentación ${i + 1}`"
                 :error="Boolean(errorDe(i, 'sku'))"
                 :error-message="errorDe(i, 'sku')"
                 dense
@@ -267,7 +305,7 @@
                     size="xs"
                     icon="autorenew"
                     tabindex="-1"
-                    :aria-label="`Volver al SKU sugerido en la variante ${i + 1}`"
+                    :aria-label="`Volver al SKU sugerido en la presentación ${i + 1}`"
                     @click="restaurarSku(variante, i)"
                   >
                     <q-tooltip>Volver al SKU sugerido</q-tooltip>
@@ -277,7 +315,7 @@
 
               <q-input
                 v-model="variante.precio"
-                :aria-label="`Precio de la variante ${i + 1}`"
+                :aria-label="`Precio de la presentación ${i + 1}`"
                 :placeholder="formatearPrecio(form.producto.precio) || 'Base'"
                 :error="Boolean(errorDe(i, 'precio'))"
                 :error-message="errorDe(i, 'precio')"
@@ -292,6 +330,25 @@
                 @change="form.validate(`${PATH}.variantes.${i}.precio`)"
               />
 
+              <q-input
+                v-model="variante.stock_minimo"
+                :aria-label="`Stock mínimo de la presentación ${i + 1}`"
+                :error="Boolean(errorDe(i, 'stock_minimo'))"
+                :error-message="errorDe(i, 'stock_minimo')"
+                placeholder="0"
+                type="number"
+                min="0"
+                step="1"
+                dense
+                outlined
+                hide-bottom-space
+                no-error-icon
+                class="producto-form__control"
+                @change="form.validate(`${PATH}.variantes.${i}.stock_minimo`)"
+              >
+                <q-tooltip>Por debajo de esta cantidad, la presentación aparece para reponer</q-tooltip>
+              </q-input>
+
               <!-- Miniatura + cantidad; abre el panel de fotos debajo de la fila. -->
               <button
                 type="button"
@@ -300,7 +357,7 @@
                   'producto-form__fotosBtn--error': erroresDe(`${PATH}.variantes.${i}.archivos`).length
                 }]"
                 :aria-expanded="String(abierta === variante.uid)"
-                :aria-label="`Fotos de la variante ${i + 1} (${variante.archivos.length})`"
+                :aria-label="`Fotos de la presentación ${i + 1} (${variante.archivos.length})`"
                 @click="abierta = abierta === variante.uid ? null : variante.uid"
               >
                 <img
@@ -327,18 +384,35 @@
               <span
                 v-if="variante.id"
                 class="producto-form__stock text-mono"
-              >{{ variante.stock }}</span>
+              >
+                {{ formatearCantidad(variante.stock) }}
+                <q-tooltip v-if="variante.stocks.length">
+                  <div
+                    v-for="s in variante.stocks"
+                    :key="s.sede_id"
+                  >
+                    {{ s.sede }}: {{ formatearCantidad(s.cantidad) }}
+                  </div>
+                </q-tooltip>
+              </span>
+              <span
+                v-else-if="form.producto.maneja_lotes"
+                class="producto-form__stock producto-form__hint"
+              >
+                Desde Inventario
+                <q-tooltip>Con lotes, el stock entra desde Inventario › Entrada, con su lote y vencimiento</q-tooltip>
+              </span>
               <div
                 v-else
                 class="producto-form__inicial"
               >
                 <q-input
                   v-model="variante.stock_inicial"
-                  :aria-label="`Stock inicial de la variante ${i + 1}`"
+                  :aria-label="`Stock inicial de la presentación ${i + 1}`"
                   placeholder="0"
                   type="number"
                   min="0"
-                  step="1"
+                  :step="unidadPorId.get(variante.unidad_id)?.fraccionable ? '0.001' : '1'"
                   dense
                   outlined
                   hide-bottom-space
@@ -349,7 +423,7 @@
                 <q-input
                   v-if="Number(variante.stock_inicial) > 0"
                   v-model="variante.costo_unitario"
-                  :aria-label="`Costo unitario de la variante ${i + 1}`"
+                  :aria-label="`Costo unitario de la presentación ${i + 1}`"
                   :placeholder="form.producto.costo_compra || 'costo'"
                   type="number"
                   min="0"
@@ -376,7 +450,7 @@
                 size="sm"
                 color="grey-7"
                 :disable="variante.stock !== 0 || variante.con_movimientos"
-                :aria-label="`Quitar variante ${i + 1}`"
+                :aria-label="`Quitar presentación ${i + 1}`"
                 @click="quitar(i)"
               >
                 <q-tooltip v-if="variante.stock !== 0 || variante.con_movimientos">
@@ -402,11 +476,11 @@
                 :errores="erroresDe(`${PATH}.variantes.${i}.archivos`)"
               />
               <AppButton
-                v-if="variante.archivos.length && hermanasDeColor(variante).length"
+                v-if="variante.archivos.length && form.producto.variantes.length > 1"
                 variant="tertiary"
                 icon="content_copy"
-                :label="`Usar estas fotos en las otras ${hermanasDeColor(variante).length} tallas de ${colorPorId.get(variante.color_id)?.nombre}`"
-                @click="copiarFotosAlColor(variante)"
+                :label="`Usar estas fotos en las otras ${form.producto.variantes.length - 1} presentaciones`"
+                @click="copiarFotosATodas(variante)"
               />
             </div>
           </template>
@@ -414,7 +488,7 @@
       </div>
 
       <div
-        v-if="hayNuevas"
+        v-if="hayNuevas && !form.producto.maneja_lotes"
         class="producto-form__stockInicial"
       >
         <div class="producto-form__stockTitulo">
@@ -422,8 +496,8 @@
             name="inventory"
             size="16px"
           />
-          Stock inicial de las variantes nuevas
-          <span class="producto-form__hint">(entra al inventario como "Alta de producto")</span>
+          Stock inicial de las presentaciones nuevas
+          <span class="producto-form__hint">(entra al inventario de {{ userStore.sede?.nombre ?? 'tu sede' }} como "Alta de producto")</span>
         </div>
         <div class="producto-form__row">
           <AppTextField
@@ -451,7 +525,7 @@
           <span>Poner</span>
           <q-input
             v-model="cantidadParaTodas"
-            aria-label="Unidades para todas las variantes nuevas"
+            aria-label="Unidades para todas las presentaciones nuevas"
             type="number"
             min="0"
             step="1"
@@ -483,120 +557,7 @@
         v-else-if="!form.producto.variantes.length"
         class="producto-form__vacio"
       >
-        Todavía no hay variantes. Elegí tallas y colores arriba y tocá “Agregar combinaciones”.
-      </p>
-    </section>
-
-    <!-- ── Medidas ── -->
-    <section
-      v-if="tallasUsadas.length"
-      class="producto-form__seccion"
-    >
-      <header>
-        <h3 class="producto-form__title">
-          Medidas por talla (cm)
-        </h3>
-        <p class="producto-form__hint">
-          Se cargan una vez por talla y valen para todos sus colores.
-        </p>
-      </header>
-
-      <div class="producto-form__medidasAgregar">
-        <q-input
-          v-model="nuevaMedida"
-          label="Nueva medida"
-          placeholder="Largo, Pecho…"
-          maxlength="30"
-          dense
-          outlined
-          class="producto-form__control producto-form__medidaInput"
-          @keydown.enter.prevent="agregarMedida(nuevaMedida)"
-        />
-        <AppButton
-          label="Agregar"
-          icon="add"
-          :disable="!nuevaMedida.trim()"
-          @click="agregarMedida(nuevaMedida)"
-        />
-        <q-chip
-          v-for="sugerida in sugerenciasMedidas"
-          :key="sugerida"
-          clickable
-          dense
-          outline
-          icon="add"
-          :label="sugerida"
-          @click="agregarMedida(sugerida)"
-        />
-      </div>
-
-      <div
-        v-if="nombresMedidas.length"
-        class="producto-form__tablaWrap"
-      >
-        <table class="producto-form__medidas">
-          <thead>
-            <tr>
-              <th scope="col">
-                Talla
-              </th>
-              <th
-                v-for="nombre in nombresMedidas"
-                :key="nombre"
-                scope="col"
-              >
-                <span class="producto-form__medidaNombre">
-                  {{ nombre }}
-                  <q-btn
-                    flat
-                    dense
-                    round
-                    size="xs"
-                    icon="close"
-                    :aria-label="`Quitar la medida ${nombre}`"
-                    @click="quitarMedida(nombre)"
-                  />
-                </span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="talla in tallasUsadas"
-              :key="talla.id"
-            >
-              <th scope="row">
-                {{ talla.nombre }}
-              </th>
-              <td
-                v-for="nombre in nombresMedidas"
-                :key="nombre"
-              >
-                <q-input
-                  :model-value="medidaDe(talla.id, nombre)"
-                  :aria-label="`${nombre} de la talla ${talla.nombre}, en cm`"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  dense
-                  outlined
-                  hide-bottom-space
-                  class="producto-form__control"
-                  @update:model-value="ponerMedida(talla.id, nombre, $event)"
-                />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <p
-        v-for="mensaje in erroresMedidas"
-        :key="mensaje"
-        class="producto-form__error"
-        role="alert"
-      >
-        {{ mensaje }}
+        Todavía no hay presentaciones. Tocá “Agregar presentación”.
       </p>
     </section>
 
@@ -616,14 +577,16 @@ import AppTextField from '@/components/AppTextField.vue'
 import CategoriaService from '@/services/CategoriaService'
 import ColorService from '@/services/ColorService'
 import ProductoService from '@/services/ProductoService'
-import TallaService from '@/services/TallaService'
+import MarcaService from '@/services/MarcaService'
+import UnidadService from '@/services/UnidadService'
+import { useUserStore } from '@/stores/user-store'
+import { formatearCantidad } from '@/utils/cantidad'
 import { formatearPrecio } from '@/utils/moneda'
 import { opcionesPadre } from '@/modules/Categorias/arbol'
 import formProducto, { nuevaVariante } from './FormProducto'
 import { sugerirSku } from './sku'
 
 const PATH = 'producto'
-const SUGERENCIAS_MEDIDAS = ['Largo', 'Pecho', 'Manga', 'Cintura', 'Cadera', 'Tiro']
 
 const props = defineProps({
   // null = crear; con id = editar.
@@ -644,14 +607,16 @@ const form = props.id
 
 // ── Catálogos ──
 const categorias = ref([])
-const tallas = ref([])
+const marcas = ref([])
+const unidades = ref([])
 const colores = ref([])
 const cargando = ref(true)
 
-const tallaPorId = computed(() => new Map(tallas.value.map((t) => [t.id, t])))
 const colorPorId = computed(() => new Map(colores.value.map((c) => [c.id, c])))
+const unidadPorId = computed(() => new Map(unidades.value.map((u) => [u.id, u])))
+const userStore = useUserStore()
 
-// Todas las categorías, con la ruta completa ("Ropa › Niños › Polos").
+// Todas las categorías, con la ruta completa ("Impermeabilizantes › Techos y cubiertas").
 const opcionesCategorias = computed(() => opcionesPadre(categorias.value))
 const busquedaCategoria = ref('')
 const categoriasFiltradas = computed(() => {
@@ -665,8 +630,11 @@ function filtrarCategorias (valor, update) {
   update(() => { busquedaCategoria.value = valor })
 }
 
-// Tallas ya vienen en su orden de exhibición desde la API.
-const opcionesTallas = computed(() => tallas.value.map((t) => ({ value: t.id, label: t.nombre })))
+// Las marcas inactivas no se ofrecen, salvo la que ya tiene el producto.
+const opcionesMarcas = computed(() => marcas.value
+  .filter((m) => m.activo || m.id === form.producto.marca_id)
+  .map((m) => ({ value: m.id, label: m.nombre })))
+const opcionesUnidades = computed(() => unidades.value.map((u) => ({ value: u.id, label: `${u.nombre} (${u.abreviatura})` })))
 const opcionesColores = computed(() => colores.value.map((c) => ({ value: c.id, label: c.nombre, hexadecimal: c.hexadecimal })))
 
 // ── Errores ──
@@ -685,7 +653,7 @@ function erroresDe (prefijo) {
 function skuSugerido (variante) {
   return sugerirSku(
     form.producto.nombre,
-    tallaPorId.value.get(variante.talla_id)?.nombre,
+    variante.presentacion,
     colorPorId.value.get(variante.color_id)?.nombre
   )
 }
@@ -710,60 +678,35 @@ function restaurarSku (variante, i) {
   form.validate(`${PATH}.variantes.${i}.sku`)
 }
 
-// Cambiar de talla trae las medidas de la nueva talla.
-function cambioTalla (variante, i) {
-  variante.medidas = { ...medidasDeTalla(variante.talla_id, variante) }
-  refrescarSku(variante)
-  form.validate(`${PATH}.variantes.${i}.color_id`)
-}
-
 function cambioColor (variante, i) {
   refrescarSku(variante)
   form.validate(`${PATH}.variantes.${i}.color_id`)
 }
 
 function etiquetaDe (variante) {
-  const talla = tallaPorId.value.get(variante.talla_id)?.nombre ?? '—'
-  const color = colorPorId.value.get(variante.color_id)?.nombre ?? '—'
-  return `talla ${talla} · ${color}`
+  const color = colorPorId.value.get(variante.color_id)?.nombre
+  return [variante.presentacion || 'la presentación', color].filter(Boolean).join(' · ')
 }
 
-// ── Generador de combinaciones ──
-const tallasElegidas = ref([])
-const coloresElegidos = ref([])
-
-function agregarCombinaciones () {
-  const existentes = new Set(form.producto.variantes.map((v) => `${v.talla_id}-${v.color_id}`))
-
-  // En el orden de los catálogos, no en el orden en que se tildaron.
-  const tallasOrdenadas = tallas.value.filter((t) => tallasElegidas.value.includes(t.id))
-  const coloresOrdenados = colores.value.filter((c) => coloresElegidos.value.includes(c.id))
-
-  for (const talla of tallasOrdenadas) {
-    for (const color of coloresOrdenados) {
-      if (existentes.has(`${talla.id}-${color.id}`)) continue
-
-      const variante = nuevaVariante({
-        talla_id: talla.id,
-        color_id: color.id,
-        // Si la talla ya tenía medidas cargadas, la nueva variante las hereda.
-        medidas: { ...medidasDeTalla(talla.id) },
-        // Y si el color ya tenía fotos en otra talla, también.
-        archivos: fotosDeColor(color.id)
-      })
-      refrescarSku(variante)
-      form.producto.variantes.push(variante)
-    }
-  }
-
-  tallasElegidas.value = []
-  coloresElegidos.value = []
+// Una fila nueva con la unidad de la última (lo normal es cargar varias
+// presentaciones parecidas seguidas).
+function agregarPresentacion () {
+  const ultima = form.producto.variantes.at(-1)
+  const variante = nuevaVariante({ unidad_id: ultima?.unidad_id ?? null })
+  refrescarSku(variante)
+  form.producto.variantes.push(variante)
 }
 
 function quitar (i) {
   if (abierta.value === form.producto.variantes[i].uid) abierta.value = null
   form.producto.variantes.splice(i, 1)
 }
+
+watch(() => form.producto.maneja_lotes, (conLotes) => {
+  if (conLotes) form.producto.variantes.forEach((v) => { if (!v.id) v.stock_inicial = '' })
+})
+
+const tieneStock = computed(() => form.producto.variantes.some((v) => Number(v.stock) !== 0))
 
 // ── Stock inicial (sólo variantes nuevas) ──
 const hayNuevas = computed(() => form.producto.variantes.some((v) => !v.id))
@@ -786,82 +729,17 @@ const costoTotal = computed(() => form.producto.variantes
 // La variante con el panel de fotos abierto (una a la vez).
 const abierta = ref(null)
 
-function hermanasDeColor (variante) {
-  return form.producto.variantes.filter((v) => v !== variante && v.color_id === variante.color_id)
-}
-
-function fotosDeColor (colorId) {
-  const conFotos = form.producto.variantes.find((v) => v.color_id === colorId && v.archivos.length)
-  return conFotos ? copiarFotos(conFotos.archivos) : []
-}
-
 // Una guardada viaja por id (el backend duplica el archivo); una nueva viaja
 // como el mismo File otra vez. Objetos nuevos: cada galería edita su lista.
 function copiarFotos (archivos) {
   return archivos.map((foto) => ({ ...foto }))
 }
 
-function copiarFotosAlColor (variante) {
-  hermanasDeColor(variante).forEach((hermana) => {
-    hermana.archivos = copiarFotos(variante.archivos)
-  })
+function copiarFotosATodas (variante) {
+  form.producto.variantes
+    .filter((v) => v !== variante)
+    .forEach((otra) => { otra.archivos = copiarFotos(variante.archivos) })
 }
-
-// ── Medidas por talla ──
-const nombresMedidas = ref([])
-const nuevaMedida = ref('')
-
-const tallasUsadas = computed(() => {
-  const ids = new Set(form.producto.variantes.map((v) => v.talla_id).filter(Boolean))
-  return tallas.value.filter((t) => ids.has(t.id))
-})
-
-const sugerenciasMedidas = computed(() => SUGERENCIAS_MEDIDAS.filter((m) => !nombresMedidas.value.includes(m)))
-
-function variantesDeTalla (tallaId) {
-  return form.producto.variantes.filter((v) => v.talla_id === tallaId)
-}
-
-function medidasDeTalla (tallaId, excepto = null) {
-  return variantesDeTalla(tallaId).find((v) => v !== excepto)?.medidas ?? {}
-}
-
-function medidaDe (tallaId, nombre) {
-  return medidasDeTalla(tallaId)[nombre] ?? ''
-}
-
-function ponerMedida (tallaId, nombre, valor) {
-  const texto = valor === null || valor === undefined ? '' : String(valor)
-
-  variantesDeTalla(tallaId).forEach((variante) => {
-    const medidas = { ...variante.medidas }
-    if (texto === '') delete medidas[nombre]
-    else medidas[nombre] = texto
-    variante.medidas = medidas
-  })
-}
-
-function agregarMedida (nombre) {
-  const limpio = String(nombre ?? '').trim()
-  nuevaMedida.value = ''
-  if (!limpio) return
-
-  const yaExiste = nombresMedidas.value.some((m) => m.toLowerCase() === limpio.toLowerCase())
-  if (!yaExiste) nombresMedidas.value.push(limpio)
-}
-
-function quitarMedida (nombre) {
-  nombresMedidas.value = nombresMedidas.value.filter((m) => m !== nombre)
-  form.producto.variantes.forEach((variante) => {
-    const medidas = { ...variante.medidas }
-    delete medidas[nombre]
-    variante.medidas = medidas
-  })
-}
-
-const erroresMedidas = computed(() => [...new Set(Object.entries(form.errors)
-  .filter(([clave]) => /\.medidas(\.|$)/.test(clave))
-  .map(([, mensaje]) => mensaje))])
 
 // ── Carga ──
 // Lo que da ArchivoResource; al guardar viaja sólo el id (lo demás se ignora).
@@ -872,52 +750,58 @@ function aFoto ({ id, url, miniatura_url: miniaturaUrl, nombre, ancho, alto }) {
 onMounted(async () => {
   const todos = { params: { rowsPerPage: 0 } }
 
-  const [catalogoCategorias, catalogoTallas, catalogoColores, producto] = await Promise.all([
+  const [catalogoCategorias, catalogoMarcas, catalogoUnidades, catalogoColores, producto] = await Promise.all([
     CategoriaService.getData(todos),
-    TallaService.getData(todos),
+    MarcaService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } }),
+    UnidadService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } }),
     ColorService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } }),
     props.id ? ProductoService.get(props.id) : null
   ])
 
   categorias.value = catalogoCategorias.data
-  tallas.value = catalogoTallas.data
+  marcas.value = catalogoMarcas.data
+  unidades.value = catalogoUnidades.data
   colores.value = catalogoColores.data
   cargando.value = false
 
-  if (!producto) return
+  if (!producto) {
+    // Con una sola marca (lo normal al empezar), ya viene elegida.
+    if (opcionesMarcas.value.length === 1) form.producto.marca_id = opcionesMarcas.value[0].value
+    return
+  }
 
-  const { nombre, categoria_id: categoriaId, descripcion, precio, activo, archivos, variantes } = producto
+  const { nombre, categoria_id: categoriaId, marca_id: marcaId, descripcion, precio, activo, maneja_lotes: manejaLotes, archivos, variantes } = producto
 
   form.setData({
     _method: 'PUT',
     [PATH]: {
       nombre,
       categoria_id: categoriaId,
+      marca_id: marcaId,
       descripcion: descripcion ?? '',
       precio: String(precio),
       activo,
+      maneja_lotes: manejaLotes,
       costo_compra: '',
       referencia_compra: '',
       archivos: archivos.map(aFoto),
       variantes: variantes.map((v) => nuevaVariante({
         id: v.id,
-        talla_id: v.talla_id,
+        presentacion: v.presentacion,
+        unidad_id: v.unidad_id,
         color_id: v.color_id,
         sku: v.sku,
         precio: v.precio ?? '',
+        stock_minimo: String(v.stock_minimo ?? 0),
         stock: v.stock,
+        stocks: v.stocks ?? [],
         con_movimientos: v.con_movimientos ?? false,
-        // Los inputs trabajan con texto.
-        medidas: Object.fromEntries(Object.entries(v.medidas ?? {}).map(([k, val]) => [k, String(val)])),
         archivos: v.archivos.map(aFoto),
         // Si el SKU guardado no es el que se sugeriría, lo escribieron a mano.
-        skuManual: v.sku !== sugerirSku(nombre, v.talla?.nombre, v.color?.nombre)
+        skuManual: v.sku !== sugerirSku(nombre, v.presentacion, v.color?.nombre)
       }))
     }
   })
-
-  // Columnas de medidas: todas las que tenga alguna variante.
-  nombresMedidas.value = [...new Set(variantes.flatMap((v) => Object.keys(v.medidas ?? {})))]
 })
 
 // Las vistas previas de fotos nuevas (blob:) se liberan al cerrar el form.
@@ -1060,10 +944,11 @@ defineExpose({ form, submit })
   color: var(--q-negative);
 }
 
-.producto-form__generador {
+.producto-form__seccionHead {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
+  justify-content: space-between;
   gap: 12px;
 }
 
@@ -1076,12 +961,12 @@ defineExpose({ form, submit })
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 740px;
+  min-width: 960px;
 }
 
 .producto-form__fila {
   display: grid;
-  grid-template-columns: 1fr 1.4fr 1.8fr 1.1fr 48px 92px 36px;
+  grid-template-columns: 1.6fr 1.2fr 1.2fr 1.6fr 1fr 0.8fr 48px 92px 36px;
   align-items: start;
   gap: 8px;
 
@@ -1219,43 +1104,4 @@ defineExpose({ form, submit })
   border-radius: 10px;
 }
 
-// ── Medidas ──
-.producto-form__medidasAgregar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.producto-form__medidaInput {
-  width: 200px;
-}
-
-.producto-form__medidas {
-  border-collapse: separate;
-  border-spacing: 8px 6px;
-  margin: 0 -8px;
-
-  th {
-    font-size: 12px;
-    font-weight: 600;
-    text-align: left;
-    color: var(--app-ink-2);
-    white-space: nowrap;
-  }
-
-  tbody th {
-    color: var(--app-ink);
-  }
-
-  td {
-    min-width: 90px;
-  }
-}
-
-.producto-form__medidaNombre {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
 </style>

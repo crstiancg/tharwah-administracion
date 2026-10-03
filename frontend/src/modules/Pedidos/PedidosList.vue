@@ -326,6 +326,7 @@ const userStore = useUserStore()
 const columns = [
   { name: 'codigo', label: 'Pedido', field: 'codigo', align: 'left', sortable: true },
   { name: 'cliente', label: 'Cliente', field: (row) => row.cliente?.nombre, align: 'left' },
+  { name: 'sede', label: 'Sede', field: (row) => row.sede?.nombre ?? '—', align: 'left' },
   { name: 'canal', label: 'Canal', field: 'canal_label', align: 'left' },
   { name: 'items_count', label: 'Ítems', field: 'items_count', align: 'right', classes: 'text-mono' },
   { name: 'total', label: 'Total', field: 'total', align: 'right', sortable: true },

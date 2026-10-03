@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use LogicException;
 
 /**
@@ -15,7 +16,7 @@ use LogicException;
  * Se crea sólo a través de App\Services\Inventario, que mueve el stock de la
  * variante en la misma transacción.
  */
-#[Fillable(['grupo', 'variante_id', 'pedido_id', 'tipo', 'cantidad', 'stock_resultante', 'costo_unitario', 'motivo', 'referencia', 'observacion', 'user_id'])]
+#[Fillable(['grupo', 'variante_id', 'sede_id', 'sede_relacionada_id', 'pedido_id', 'compra_id', 'tipo', 'cantidad', 'stock_resultante', 'costo_unitario', 'motivo', 'referencia', 'observacion', 'user_id'])]
 class MovimientoInventario extends Model
 {
     public const ENTRADA = 'entrada';
@@ -44,6 +45,16 @@ class MovimientoInventario extends Model
     /** Stock inicial cargado al crear el producto (o una variante nueva). */
     public const MOTIVO_ALTA_PRODUCTO = 'alta_producto';
 
+    /** Los registra App\Services\Compras. */
+    public const MOTIVO_COMPRA = 'compra';
+
+    public const MOTIVO_ANULACION_COMPRA = 'anulacion_compra';
+
+    /** Las dos patas de un traslado entre sedes (mismo grupo). */
+    public const MOTIVO_TRASLADO_SALIDA = 'traslado_salida';
+
+    public const MOTIVO_TRASLADO_ENTRADA = 'traslado_entrada';
+
     /** Etiqueta de cualquier motivo, para mostrar. */
     public static function etiquetaMotivo(?string $motivo): ?string
     {
@@ -53,6 +64,10 @@ class MovimientoInventario extends Model
             self::MOTIVO_VENTA => 'Venta',
             self::MOTIVO_DEVOLUCION_VENTA => 'Pedido cancelado',
             self::MOTIVO_ALTA_PRODUCTO => 'Alta de producto',
+            self::MOTIVO_COMPRA => 'Compra',
+            self::MOTIVO_ANULACION_COMPRA => 'Compra anulada',
+            self::MOTIVO_TRASLADO_SALIDA => 'Traslado enviado',
+            self::MOTIVO_TRASLADO_ENTRADA => 'Traslado recibido',
             default => self::MOTIVOS_SALIDA[$motivo] ?? $motivo,
         };
     }
@@ -63,8 +78,8 @@ class MovimientoInventario extends Model
     protected function casts(): array
     {
         return [
-            'cantidad' => 'integer',
-            'stock_resultante' => 'integer',
+            'cantidad' => 'float',
+            'stock_resultante' => 'float',
             'costo_unitario' => 'decimal:2',
             'created_at' => 'datetime',
         ];
@@ -79,6 +94,30 @@ class MovimientoInventario extends Model
     public function variante(): BelongsTo
     {
         return $this->belongsTo(Variante::class);
+    }
+
+    /**
+     * Los lotes que movió, con la cantidad de cada uno en el pivot (con
+     * el mismo signo que el movimiento).
+     */
+    public function lotes(): BelongsToMany
+    {
+        return $this->belongsToMany(Lote::class, 'movimiento_lotes')->withPivot('cantidad');
+    }
+
+    public function sede(): BelongsTo
+    {
+        return $this->belongsTo(Sede::class);
+    }
+
+    public function sedeRelacionada(): BelongsTo
+    {
+        return $this->belongsTo(Sede::class, 'sede_relacionada_id');
+    }
+
+    public function compra(): BelongsTo
+    {
+        return $this->belongsTo(Compra::class);
     }
 
     public function pedido(): BelongsTo

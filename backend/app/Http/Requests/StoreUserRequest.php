@@ -57,6 +57,7 @@ class StoreUserRequest extends FormRequest
             ],
             // Al editar, vacía = no cambiarla.
             'usuario.password' => [$creando ? 'required' : 'nullable', 'string', 'min:8'],
+            'usuario.sede_id' => ['nullable', 'integer', 'exists:sedes,id'],
             'usuario.rolesSelected' => ['sometimes', 'array'],
             'usuario.rolesSelected.*' => ['integer', Rule::exists('roles', 'id')->where('guard_name', 'api')],
             'usuario.permisosSelected' => ['sometimes', 'array'],
@@ -84,6 +85,7 @@ class StoreUserRequest extends FormRequest
             'usuario.username' => 'usuario',
             'usuario.email' => 'email',
             'usuario.password' => 'contraseña',
+            'usuario.sede_id' => 'sede',
             'usuario.rolesSelected.*' => 'rol',
             'usuario.permisosSelected.*' => 'permiso',
         ];

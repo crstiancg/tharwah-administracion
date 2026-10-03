@@ -60,7 +60,7 @@ class OfertaResource extends JsonResource
             $productos[$v->producto_id]['variantes'][] = [
                 'id' => $v->id,
                 'sku' => $v->sku,
-                'talla' => $v->talla?->nombre,
+                'presentacion' => $v->presentacion,
                 'color' => $v->color?->only(['nombre', 'hexadecimal']),
             ];
         }

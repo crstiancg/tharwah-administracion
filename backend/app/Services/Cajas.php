@@ -14,6 +14,8 @@ use Illuminate\Validation\ValidationException;
 /**
  * Caja, pagos y arqueo. El único lugar que registra dinero:
  *
+ * - Cada sede tiene su caja: el dinero entra a la caja abierta de la sede
+ *   del usuario que cobra (es donde está físicamente el cajón).
  * - Todo pago (de cualquier método) entra a la caja abierta: así el cierre
  *   muestra lo cobrado del día por método. El arqueo compara sólo efectivo.
  * - Pagos y movimientos son inmutables: un error se corrige con otro
@@ -23,15 +25,16 @@ use Illuminate\Validation\ValidationException;
  */
 class Cajas
 {
-    public function actual(): ?Caja
+    public function actual(int $sedeId): ?Caja
     {
-        return Caja::query()->where('estado', Caja::ABIERTA)->first();
+        return Caja::query()->where('sede_id', $sedeId)->where('estado', Caja::ABIERTA)->first();
     }
 
-    public function abrir(float $montoApertura, ?User $usuario): Caja
+    public function abrir(int $sedeId, float $montoApertura, ?User $usuario): Caja
     {
         try {
             return DB::transaction(fn () => Caja::query()->forceCreate([
+                'sede_id' => $sedeId,
                 'estado' => Caja::ABIERTA,
                 'abierta' => true,
                 'monto_apertura' => $montoApertura,
@@ -40,7 +43,7 @@ class Cajas
             ]));
         } catch (UniqueConstraintViolationException) {
             // El unique de `abierta` ganó la carrera: ya hay una abierta.
-            throw $this->conflicto('caja', 'Ya hay una caja abierta.');
+            throw $this->conflicto('caja', 'Ya hay una caja abierta en esta sede.');
         }
     }
 
@@ -89,7 +92,7 @@ class Cajas
     public function cobrar(Pedido $pedido, array $datos, ?User $usuario): Pago
     {
         return DB::transaction(function () use ($pedido, $datos, $usuario) {
-            $caja = $this->cajaAbiertaBloqueada();
+            $caja = $this->cajaAbiertaBloqueada($usuario);
             $pedido = Pedido::query()->whereKey($pedido->id)->lockForUpdate()->firstOrFail();
 
             if (! in_array($pedido->estado, [Pedido::PENDIENTE, Pedido::CONFIRMADO], true)) {
@@ -140,7 +143,7 @@ class Cajas
     public function devolver(Pedido $pedido, array $datos, ?User $usuario): Pago
     {
         return DB::transaction(function () use ($pedido, $datos, $usuario) {
-            $caja = $this->cajaAbiertaBloqueada();
+            $caja = $this->cajaAbiertaBloqueada($usuario);
             $pedido = Pedido::query()->whereKey($pedido->id)->lockForUpdate()->firstOrFail();
 
             if ($pedido->estado === Pedido::ENTREGADO) {
@@ -173,7 +176,7 @@ class Cajas
     public function movimiento(string $tipo, float $monto, string $concepto, ?User $usuario): MovimientoCaja
     {
         return DB::transaction(function () use ($tipo, $monto, $concepto, $usuario) {
-            $caja = $this->cajaAbiertaBloqueada();
+            $caja = $this->cajaAbiertaBloqueada($usuario);
 
             if ($tipo === MovimientoCaja::EGRESO) {
                 $this->exigirEfectivo($caja, $monto, 'movimiento.monto');
@@ -226,12 +229,13 @@ class Cajas
         });
     }
 
-    private function cajaAbiertaBloqueada(): Caja
+    private function cajaAbiertaBloqueada(?User $usuario): Caja
     {
-        $caja = Caja::query()->where('estado', Caja::ABIERTA)->lockForUpdate()->first();
+        $sedeId = $usuario?->sedeOperativa();
+        $caja = Caja::query()->where('sede_id', $sedeId)->where('estado', Caja::ABIERTA)->lockForUpdate()->first();
 
         if (! $caja) {
-            throw $this->conflicto('caja', 'No hay una caja abierta: abrí la caja para registrar dinero.');
+            throw $this->conflicto('caja', 'No hay una caja abierta en tu sede: abrí la caja para registrar dinero.');
         }
 
         return $caja;

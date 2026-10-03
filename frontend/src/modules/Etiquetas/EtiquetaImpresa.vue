@@ -8,7 +8,7 @@
   >
     <div class="etiqueta__texto">
       <span class="etiqueta__nombre">{{ variante.producto?.nombre }}</span>
-      <span class="etiqueta__talla">T. {{ variante.talla }}</span>
+      <span class="etiqueta__talla">{{ variante.presentacion }}<template v-if="variante.color"> {{ variante.color.nombre }}</template></span>
     </div>
     <div class="etiqueta__codigo">
       <CodigoBarras
@@ -25,7 +25,7 @@ import CodigoBarras from './CodigoBarras.vue'
 import { anchoCodigo } from './formatos'
 
 const props = defineProps({
-  // { codigo_barras, producto: { nombre }, talla } (EtiquetaResource)
+  // { codigo_barras, producto: { nombre }, presentacion, color } (EtiquetaResource)
   variante: {
     type: Object,
     required: true
@@ -73,7 +73,7 @@ const estilo = computed(() => ({
   font-weight: 600;
 }
 
-// La talla es lo que más se busca en el colgador: que no se corte nunca.
+// La presentación es lo que más se busca en el anaquel: que no se corte nunca.
 .etiqueta__talla {
   flex-shrink: 0;
   font-weight: 800;

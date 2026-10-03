@@ -14,5 +14,7 @@ export const CANALES = [
   { value: 'mostrador', label: 'Mostrador' },
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'redes', label: 'Redes sociales' },
-  { value: 'web', label: 'Web' }
+  { value: 'web', label: 'Web' },
+  // Lo pone el sistema al convertir una cotización.
+  { value: 'cotizacion', label: 'Cotización' }
 ]

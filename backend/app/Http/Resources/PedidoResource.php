@@ -24,6 +24,7 @@ class PedidoResource extends JsonResource
             'codigo' => $this->codigo,
             'estado' => $this->estado,
             'editable' => $this->editable(),
+            'sede' => $this->whenLoaded('sede', fn () => $this->sede?->only(['id', 'nombre', 'direccion', 'telefono'])),
             'canal' => $this->canal,
             'canal_label' => Pedido::CANALES[$this->canal] ?? $this->canal,
             'cliente_id' => $this->cliente_id,
@@ -77,7 +78,7 @@ class PedidoResource extends JsonResource
             return null;
         }
 
-        $costo = $this->items->sum(fn ($item) => $item->cantidad * (float) $item->costo_unitario);
+        $costo = $this->items->sum(fn ($item) => (float) $item->cantidad * (float) $item->costo_unitario);
 
         return number_format((float) $this->total - $costo, 2, '.', '');
     }

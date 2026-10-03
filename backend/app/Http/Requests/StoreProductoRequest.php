@@ -10,7 +10,8 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Crea y actualiza un producto junto con sus variantes (talla × color).
+ * Crea y actualiza un producto junto con sus presentaciones (variantes:
+ * "Balde 4 gl", "Cartucho 300 ml gris"...).
  * Payload anidado en `producto`; las variantes en `producto.variantes`.
  *
  * El stock NO viene en el payload: sólo lo mueve el inventario.
@@ -43,8 +44,10 @@ class StoreProductoRequest extends FormRequest
         }
 
         // En multipart un booleano llega como texto.
-        if (in_array($producto['activo'] ?? null, ['true', 'false'], true)) {
-            $producto['activo'] = $producto['activo'] === 'true';
+        foreach (['activo', 'maneja_lotes'] as $campo) {
+            if (in_array($producto[$campo] ?? null, ['true', 'false'], true)) {
+                $producto[$campo] = $producto[$campo] === 'true';
+            }
         }
 
         if (is_array($producto['variantes'] ?? null)) {
@@ -55,16 +58,20 @@ class StoreProductoRequest extends FormRequest
                 if (is_string($variante['sku'] ?? null)) {
                     $variante['sku'] = mb_strtoupper(trim($variante['sku']));
                 }
+                if (is_string($variante['presentacion'] ?? null)) {
+                    $variante['presentacion'] = trim($variante['presentacion']);
+                }
+                // Sin color = presentación sin color (la mayoría).
+                if (($variante['color_id'] ?? null) === '') {
+                    $variante['color_id'] = null;
+                }
+                // Vacío (el middleware ya lo convirtió en null) = sin mínimo.
+                if (in_array($variante['stock_minimo'] ?? null, [null, ''], true)) {
+                    $variante['stock_minimo'] = 0;
+                }
                 // Precio vacío = usa el precio base del producto.
                 if (($variante['precio'] ?? null) === '') {
                     $variante['precio'] = null;
-                }
-                // Una medida vacía es "sin medida", no un error.
-                if (is_array($variante['medidas'] ?? null)) {
-                    $variante['medidas'] = array_filter(
-                        $variante['medidas'],
-                        fn ($valor) => $valor !== null && $valor !== '',
-                    );
                 }
 
                 return $variante;
@@ -87,9 +94,11 @@ class StoreProductoRequest extends FormRequest
         $rules = [
             'producto.nombre' => ['required', 'string', 'max:120', $this->nombreUnico($producto)],
             'producto.categoria_id' => ['required', 'integer', 'exists:categorias,id'],
+            'producto.marca_id' => ['required', 'integer', 'exists:marcas,id'],
             'producto.descripcion' => ['nullable', 'string', 'max:1000'],
             'producto.precio' => ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
             'producto.activo' => ['required', 'boolean'],
+            'producto.maneja_lotes' => ['required', 'boolean', $this->lotesSinStock($producto)],
             'producto.variantes' => ['required', 'array', 'min:1', $this->noQuitaVariantesConStock($producto)],
             // Stock inicial de las variantes nuevas: el costo general de la
             // compra (ajustable por variante) y la factura o guía.
@@ -104,11 +113,10 @@ class StoreProductoRequest extends FormRequest
                 // Sólo se editan variantes de ESTE producto (al crear, ninguna).
                 Rule::exists('variantes', 'id')->where('producto_id', $producto?->getKey() ?? 0),
             ];
-            $rules["producto.variantes.{$i}.talla_id"] = ['required', 'integer', 'exists:tallas,id'];
-            $rules["producto.variantes.{$i}.color_id"] = [
-                'required', 'integer', 'exists:colores,id',
-                $this->combinacionUnica($i),
-            ];
+            $rules["producto.variantes.{$i}.presentacion"] = ['required', 'string', 'max:60', $this->combinacionUnica($i)];
+            $rules["producto.variantes.{$i}.unidad_id"] = ['required', 'integer', 'exists:unidades,id'];
+            $rules["producto.variantes.{$i}.color_id"] = ['nullable', 'integer', 'exists:colores,id'];
+            $rules["producto.variantes.{$i}.stock_minimo"] = ['required', 'numeric', 'min:0', 'max:1000000', 'decimal:0,3'];
             $rules["producto.variantes.{$i}.sku"] = [
                 'required', 'string', 'max:40', 'regex:/^[A-Z0-9-]+$/',
                 $this->skuUnicoEnElProducto($i),
@@ -118,10 +126,8 @@ class StoreProductoRequest extends FormRequest
                 Rule::unique('variantes', 'sku')->where(fn ($q) => $q->where('producto_id', '!=', $producto?->getKey() ?? 0)),
             ];
             $rules["producto.variantes.{$i}.precio"] = ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
-            $rules["producto.variantes.{$i}.stock_inicial"] = ['nullable', 'integer', 'min:0', 'max:100000', $this->stockInicialValido($i)];
+            $rules["producto.variantes.{$i}.stock_inicial"] = ['nullable', 'numeric', 'min:0', 'max:100000', 'decimal:0,3', $this->stockInicialValido($i)];
             $rules["producto.variantes.{$i}.costo_unitario"] = ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
-            $rules["producto.variantes.{$i}.medidas"] = ['nullable', 'array', 'max:12', $this->nombresDeMedidas()];
-            $rules["producto.variantes.{$i}.medidas.*"] = ['numeric', 'min:0', 'max:999.9', 'decimal:0,1'];
             $rules = [...$rules, ...$this->reglasArchivos("producto.variantes.{$i}.archivos")];
         }
 
@@ -158,7 +164,7 @@ class StoreProductoRequest extends FormRequest
 
     /**
      * Una foto existente se puede reusar en cualquier parte del MISMO
-     * producto (así se copia a las otras tallas del mismo color), nunca una
+     * producto (así se copia a otras presentaciones), nunca una
      * de otro producto.
      */
     private function archivoDelProducto(): Closure
@@ -203,11 +209,23 @@ class StoreProductoRequest extends FormRequest
     private function stockInicialValido(int|string $i): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail) use ($i) {
-            if ((int) $value <= 0) {
+            if ((float) $value <= 0) {
+                return;
+            }
+            // Va a la sede del usuario: sin sede no hay dónde ponerlo.
+            if (! $this->user()?->sede_id) {
+                $fail('Tu usuario no tiene sede asignada: el stock inicial no tiene dónde entrar.');
+
                 return;
             }
             if ($this->input("producto.variantes.{$i}.id")) {
-                $fail('El stock de una variante que ya existe se carga desde Inventario.');
+                $fail('El stock de una presentación que ya existe se carga desde Inventario.');
+
+                return;
+            }
+
+            if (filter_var($this->input('producto.maneja_lotes'), FILTER_VALIDATE_BOOLEAN)) {
+                $fail('Con lotes, el stock inicial se carga desde Inventario › Entrada, con su lote y vencimiento.');
 
                 return;
             }
@@ -219,15 +237,15 @@ class StoreProductoRequest extends FormRequest
         };
     }
 
-    private function nombresDeMedidas(): Closure
+    /**
+     * Prender o apagar los lotes con stock dejaría unidades sin lote (o
+     * lotes que ya no cuadran con el stock): sólo con el producto en 0.
+     */
+    private function lotesSinStock(?Producto $producto): Closure
     {
-        return function (string $attribute, mixed $value, Closure $fail) {
-            foreach (array_keys((array) $value) as $nombre) {
-                if (! is_string($nombre) || trim($nombre) === '' || mb_strlen($nombre) > 30) {
-                    $fail('Cada medida necesita un nombre de hasta 30 caracteres.');
-
-                    return;
-                }
+        return function (string $attribute, mixed $value, Closure $fail) use ($producto) {
+            if ($producto && (bool) $value !== $producto->maneja_lotes && $producto->variantes()->where('stock', '!=', 0)->exists()) {
+                $fail('Sólo se puede cambiar el manejo de lotes con el producto sin stock.');
             }
         };
     }
@@ -247,21 +265,24 @@ class StoreProductoRequest extends FormRequest
     }
 
     /**
-     * La misma talla y color dos veces en el mismo producto es la misma
-     * variante. El error va en la fila repetida, no en la primera.
+     * La misma presentación (y color) dos veces en el mismo producto es la
+     * misma variante. El error va en la fila repetida, no en la primera. Va
+     * acá y no sólo en el unique de la tabla: con color null MySQL no lo
+     * hace cumplir.
      */
     private function combinacionUnica(int|string $indice): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail) use ($indice) {
             $variantes = (array) $this->input('producto.variantes', []);
-            $talla = $variantes[$indice]['talla_id'] ?? null;
+            $color = $variantes[$indice]['color_id'] ?? null;
 
             foreach ($variantes as $i => $otra) {
                 if ($i === $indice) {
                     return;
                 }
-                if (($otra['talla_id'] ?? null) == $talla && ($otra['color_id'] ?? null) == $value) {
-                    $fail('Esta talla y color ya están en otra variante.');
+                if (mb_strtolower((string) ($otra['presentacion'] ?? '')) === mb_strtolower((string) $value)
+                    && ($otra['color_id'] ?? null) == $color) {
+                    $fail('Esta presentación ya está cargada en este producto.');
 
                     return;
                 }
@@ -309,7 +330,7 @@ class StoreProductoRequest extends FormRequest
                 ->pluck('sku');
 
             if ($bloqueadas->isNotEmpty()) {
-                $fail('No se pueden quitar variantes con stock o con historial de inventario: '.$bloqueadas->implode(', ').'.');
+                $fail('No se pueden quitar presentaciones con stock o con historial de inventario: '.$bloqueadas->implode(', ').'.');
             }
         };
     }
@@ -320,17 +341,16 @@ class StoreProductoRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'producto.variantes.required' => 'Agregá al menos una variante (talla y color).',
-            'producto.variantes.min' => 'Agregá al menos una variante (talla y color).',
+            'producto.variantes.required' => 'Agregá al menos una presentación.',
+            'producto.variantes.min' => 'Agregá al menos una presentación.',
             'producto.variantes.*.sku.regex' => 'El SKU sólo puede tener letras, números y guiones.',
-            'producto.variantes.*.sku.unique' => 'Ese SKU ya lo usa otra variante.',
+            'producto.variantes.*.sku.unique' => 'Ese SKU ya lo usa otra presentación.',
             'producto.archivos.max' => 'Máximo '.self::MAX_ARCHIVOS.' fotos.',
-            'producto.variantes.*.archivos.max' => 'Máximo '.self::MAX_ARCHIVOS.' fotos por variante.',
+            'producto.variantes.*.archivos.max' => 'Máximo '.self::MAX_ARCHIVOS.' fotos por presentación.',
             'producto.archivos.*.archivo.max' => 'Cada foto puede pesar hasta 4 MB.',
             'producto.variantes.*.archivos.*.archivo.max' => 'Cada foto puede pesar hasta 4 MB.',
             'producto.archivos.*.archivo.mimes' => 'Sólo fotos JPG, PNG o WEBP.',
             'producto.variantes.*.archivos.*.archivo.mimes' => 'Sólo fotos JPG, PNG o WEBP.',
-            'producto.variantes.*.medidas.*.numeric' => 'Las medidas van en cm, sólo números.',
         ];
     }
 
@@ -342,10 +362,14 @@ class StoreProductoRequest extends FormRequest
         return [
             'producto.nombre' => 'nombre',
             'producto.categoria_id' => 'categoría',
+            'producto.marca_id' => 'marca',
             'producto.descripcion' => 'descripción',
             'producto.precio' => 'precio',
             'producto.activo' => 'activo',
-            'producto.variantes.*.talla_id' => 'talla',
+            'producto.maneja_lotes' => 'maneja lotes',
+            'producto.variantes.*.presentacion' => 'presentación',
+            'producto.variantes.*.unidad_id' => 'unidad',
+            'producto.variantes.*.stock_minimo' => 'stock mínimo',
             'producto.variantes.*.color_id' => 'color',
             'producto.variantes.*.sku' => 'SKU',
             'producto.variantes.*.precio' => 'precio',
@@ -353,7 +377,6 @@ class StoreProductoRequest extends FormRequest
             'producto.variantes.*.costo_unitario' => 'costo',
             'producto.costo_compra' => 'costo de compra',
             'producto.referencia_compra' => 'factura o guía',
-            'producto.variantes.*.medidas.*' => 'medida',
             'producto.archivos.*.archivo' => 'foto',
             'producto.variantes.*.archivos.*.archivo' => 'foto',
         ];

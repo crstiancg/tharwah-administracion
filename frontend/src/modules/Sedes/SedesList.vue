@@ -1,14 +1,14 @@
 <template>
   <div class="app-list-page">
     <AppPageHeader
-      title="Tallas"
-      :subtitle="`${pagination.rowsNumber} tallas registradas`"
+      title="Sedes"
+      :subtitle="`${pagination.rowsNumber} sedes registradas`"
     >
       <template #actions>
         <AppButton
-          v-if="userStore.hasPermission('tallas.store')"
+          v-if="userStore.hasPermission('sedes.store')"
           variant="primary"
-          label="Nueva talla"
+          label="Nueva sede"
           icon="add"
           @click="crear"
         />
@@ -17,7 +17,7 @@
 
     <AppFilterBar
       v-model:search="search"
-      search-placeholder="Buscar por nombre"
+      search-placeholder="Buscar por nombre o dirección"
     />
 
     <AppTable
@@ -27,12 +27,21 @@
       :columns="columns"
       :loading="loading"
       :filter="filter"
-      no-data-label="No hay tallas que coincidan con la búsqueda."
+      no-data-label="No hay sedes que coincidan con la búsqueda."
       @request="onRequest"
     >
       <template #body-cell-nombre="props">
         <q-td :props="props">
-          <span class="talla-nombre">{{ props.row.nombre }}</span>
+          <span class="registro-nombre">{{ props.row.nombre }}</span>
+        </q-td>
+      </template>
+
+      <template #body-cell-activo="props">
+        <q-td :props="props">
+          <AppChip
+            :status="props.row.activo ? 'positive' : 'negative'"
+            :label="props.row.activo ? 'Activa' : 'Inactiva'"
+          />
         </q-td>
       </template>
 
@@ -42,7 +51,7 @@
           class="text-right"
         >
           <q-btn
-            v-if="userStore.hasPermission('tallas.update')"
+            v-if="userStore.hasPermission('sedes.update')"
             flat
             dense
             round
@@ -53,7 +62,7 @@
             @click="editar(props.row)"
           />
           <q-btn
-            v-if="userStore.hasPermission('tallas.destroy')"
+            v-if="userStore.hasPermission('sedes.destroy')"
             flat
             dense
             round
@@ -72,11 +81,10 @@
       :title="title"
       persistent
     >
-      <TallasForm
+      <SedesForm
         :id="editId"
         ref="formRef"
         :key="editId ?? 'nueva'"
-        :orden-sugerido="ordenSugerido"
         @save="save"
       />
 
@@ -97,10 +105,10 @@
 
     <AppDialog
       v-model="confirmDialog"
-      title="Eliminar talla"
+      title="Eliminar sede"
     >
       <p class="confirm-text">
-        ¿Eliminar la talla <strong>{{ aEliminar?.nombre }}</strong>? Esta acción no se puede deshacer.
+        ¿Eliminar la sede <strong>{{ aEliminar?.nombre }}</strong>? Esta acción no se puede deshacer.
       </p>
 
       <template #actions>
@@ -125,20 +133,24 @@
 import { onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import AppButton from '@/components/AppButton.vue'
+import AppChip from '@/components/AppChip.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppFilterBar from '@/components/AppFilterBar.vue'
 import AppPageHeader from '@/components/AppPageHeader.vue'
 import AppTable from '@/components/AppTable.vue'
-import TallaService from '@/services/TallaService'
+import SedeService from '@/services/SedeService'
 import { useUserStore } from '@/stores/user-store'
-import TallasForm from './TallasForm.vue'
+import SedesForm from './SedesForm.vue'
 
 const $q = useQuasar()
 const userStore = useUserStore()
 
 const columns = [
-  { name: 'orden', label: 'Orden', field: 'orden', align: 'left', sortable: true, classes: 'text-mono' },
   { name: 'nombre', label: 'Nombre', field: 'nombre', align: 'left', sortable: true },
+  { name: 'direccion', label: 'Dirección', field: 'direccion', align: 'left', format: (v) => v ?? '—' },
+  { name: 'telefono', label: 'Teléfono', field: 'telefono', align: 'left', format: (v) => v ?? '—' },
+  { name: 'usuarios_count', label: 'Usuarios', field: 'usuarios_count', align: 'right', classes: 'text-mono' },
+  { name: 'activo', label: 'Estado', field: 'activo', align: 'left', sortable: true },
   { name: 'acciones', label: '', field: 'id', align: 'right' }
 ]
 
@@ -146,8 +158,7 @@ const columns = [
 const tableRef = ref()
 const rows = ref([])
 const loading = ref(false)
-// Por orden de exhibición, no alfabético: "2, 4, 6… 10" y no "10, 2, 4".
-const pagination = ref({ sortBy: 'orden', descending: false, page: 1, rowsPerPage: 20, rowsNumber: 0 })
+const pagination = ref({ sortBy: 'nombre', descending: false, page: 1, rowsPerPage: 20, rowsNumber: 0 })
 
 // El buscador escribe en `search`; a la tabla le llega `filter` recién cuando
 // se deja de tipear, para no pegarle a la API por cada tecla.
@@ -164,7 +175,7 @@ async function onRequest ({ pagination: requested, filter: term }) {
   loading.value = true
 
   try {
-    const { data, total = 0 } = await TallaService.getData({
+    const { data, total = 0 } = await SedeService.getData({
       params: { rowsPerPage, page, search: term, order_by: descending ? `-${sortBy}` : sortBy }
     })
 
@@ -184,29 +195,23 @@ const formDialog = ref(false)
 const formRef = ref()
 const title = ref('')
 const editId = ref(null)
-const ordenSugerido = ref(null)
 
-async function crear () {
+function crear () {
   editId.value = null
-  title.value = 'Nueva talla'
-
-  // Sugiere el siguiente orden de 10 en 10 después de la última talla.
-  const { data } = await TallaService.getData({ params: { rowsPerPage: 1, order_by: '-orden' } })
-  ordenSugerido.value = data.length ? Math.floor(data[0].orden / 10) * 10 + 10 : 10
-
+  title.value = 'Nueva sede'
   formDialog.value = true
 }
 
 function editar (row) {
   editId.value = row.id
-  title.value = 'Editar talla'
+  title.value = 'Editar sede'
   formDialog.value = true
 }
 
 function save () {
   formDialog.value = false
   tableRef.value.requestServerInteraction()
-  $q.notify({ type: 'positive', message: 'Talla guardada.', position: 'top-right', timeout: 1500 })
+  $q.notify({ type: 'positive', message: 'Sede guardada.', position: 'top-right', timeout: 1500 })
 }
 
 // ── Eliminar con confirmación ──
@@ -222,12 +227,12 @@ function eliminar (row) {
 async function confirmarEliminar () {
   eliminando.value = true
   try {
-    await TallaService.delete(aEliminar.value.id)
+    await SedeService.delete(aEliminar.value.id)
     confirmDialog.value = false
     tableRef.value.requestServerInteraction()
-    $q.notify({ type: 'positive', message: 'Talla eliminada.', position: 'top-right', timeout: 1500 })
+    $q.notify({ type: 'positive', message: 'Sede eliminada.', position: 'top-right', timeout: 1500 })
   } catch (error) {
-    // 409: la talla la usa alguna variante de producto.
+    // 409: la sede ya tiene stock, ventas o cajas (se desactiva en su lugar).
     if (error.response?.status === 409) {
       confirmDialog.value = false
       $q.notify({ type: 'negative', message: error.response.data.message, position: 'top-right', timeout: 3000 })
@@ -239,7 +244,7 @@ async function confirmarEliminar () {
 </script>
 
 <style lang="scss" scoped>
-.talla-nombre {
+.registro-nombre {
   font-weight: 600;
   color: var(--app-ink);
 }

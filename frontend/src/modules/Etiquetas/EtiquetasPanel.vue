@@ -134,10 +134,11 @@
         <q-td :props="props">
           <span class="etiquetas-color">
             <span
+              v-if="props.row.color"
               class="etiquetas-color__swatch"
-              :style="{ background: props.row.color?.hexadecimal }"
+              :style="{ background: props.row.color.hexadecimal }"
             />
-            {{ props.row.color?.nombre }}
+            {{ props.row.color?.nombre ?? '—' }}
           </span>
         </q-td>
       </template>
@@ -152,7 +153,7 @@
             dense
             outlined
             hide-bottom-space
-            :aria-label="`Etiquetas de ${props.row.producto.nombre} talla ${props.row.talla} ${props.row.color?.nombre}`"
+            :aria-label="`Etiquetas de ${props.row.producto.nombre} ${props.row.presentacion} ${props.row.color?.nombre ?? ''}`"
             class="etiquetas-control etiquetas-cantidad"
             @update:model-value="cambiarCantidad(props.row, $event)"
           />
@@ -190,7 +191,7 @@ const MAX_LOTE = 500
 const columns = [
   { name: 'codigo', label: 'Código', field: 'codigo_barras', align: 'left' },
   { name: 'producto', label: 'Producto', field: (row) => row.producto.nombre, align: 'left' },
-  { name: 'talla', label: 'Talla', field: 'talla', align: 'left' },
+  { name: 'presentacion', label: 'Presentación', field: 'presentacion', align: 'left' },
   { name: 'color', label: 'Color', field: (row) => row.color?.nombre, align: 'left' },
   { name: 'stock', label: 'Stock', field: 'stock', align: 'right', classes: 'text-mono' },
   { name: 'cantidad', label: 'Etiquetas', field: 'id', align: 'left' }

@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Pedido;
 use App\Models\Variante;
+use App\Support\Cantidades;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -58,7 +59,7 @@ class StorePedidoRequest extends FormRequest
             $rules["pedido.items.{$i}.variante_id"] = [
                 'required', 'integer', 'exists:variantes,id', $this->varianteUnica($i), $this->productoActivo(),
             ];
-            $rules["pedido.items.{$i}.cantidad"] = ['required', 'integer', 'min:1', 'max:10000'];
+            $rules["pedido.items.{$i}.cantidad"] = [...Cantidades::positiva(10000), Cantidades::segunUnidad($this->input("pedido.items.{$i}.variante_id"))];
             $rules["pedido.items.{$i}.precio_unitario"] = ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
         }
 
@@ -73,7 +74,7 @@ class StorePedidoRequest extends FormRequest
                     return;
                 }
                 if (($otro['variante_id'] ?? null) == $value) {
-                    $fail('Esta variante ya está en otro ítem: sumá la cantidad ahí.');
+                    $fail('Esta presentación ya está en otro ítem: sumá la cantidad ahí.');
 
                     return;
                 }
@@ -89,7 +90,7 @@ class StorePedidoRequest extends FormRequest
                 ->exists();
 
             if (! $activo) {
-                $fail('El producto de esta variante está desactivado.');
+                $fail('El producto de esta presentación está desactivado.');
             }
         };
     }
@@ -98,7 +99,7 @@ class StorePedidoRequest extends FormRequest
     {
         return function (string $attribute, mixed $value, Closure $fail) {
             $subtotal = collect((array) $this->input('pedido.items', []))
-                ->sum(fn ($i) => (int) ($i['cantidad'] ?? 0) * (float) ($i['precio_unitario'] ?? 0));
+                ->sum(fn ($i) => round((float) ($i['cantidad'] ?? 0) * (float) ($i['precio_unitario'] ?? 0), 2));
 
             if ((float) $value > round($subtotal, 2)) {
                 $fail('El descuento no puede ser mayor que el subtotal.');
@@ -127,7 +128,7 @@ class StorePedidoRequest extends FormRequest
             'pedido.canal' => 'canal',
             'pedido.descuento' => 'descuento',
             'pedido.observacion' => 'observación',
-            'pedido.items.*.variante_id' => 'variante',
+            'pedido.items.*.variante_id' => 'presentación',
             'pedido.items.*.cantidad' => 'cantidad',
             'pedido.items.*.precio_unitario' => 'precio',
         ];

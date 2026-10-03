@@ -109,7 +109,7 @@
             {{ item.nombre }}
           </div>
           <div class="linea__detalle">
-            <span class="linea__talla">T{{ item.talla }}</span>
+            <span class="linea__talla">{{ item.presentacion }}</span>
             <span
               v-if="item.color"
               class="linea__swatch"
@@ -131,7 +131,24 @@
                   size="12px"
                 />
               </button>
-              <span class="text-mono">{{ item.cantidad }}</span>
+              <!-- Kg, metros: se escribe la cantidad (2.5). Lo demás, con + / −. -->
+              <input
+                v-if="item.fraccionable"
+                :value="item.cantidad"
+                type="number"
+                min="0"
+                step="0.001"
+                inputmode="decimal"
+                class="linea__cantidadInput text-mono"
+                :aria-label="`Cantidad de ${item.sku}`"
+                @click.stop
+                @keydown.stop
+                @change="fijar(item, $event)"
+              >
+              <span
+                v-else
+                class="text-mono"
+              >{{ item.cantidad }}</span>
               <button
                 type="button"
                 :aria-label="`Uno más de ${item.sku}`"
@@ -453,6 +470,15 @@ function cajaAbierta (nueva) {
 onMounted(cargarCaja)
 
 // ── Carrito ──
+function fijar (item, evento) {
+  const resultado = pos.fijarCantidad(item.variante_id, evento.target.value)
+  if (resultado !== 'ok') {
+    beepError()
+    // Vuelve a mostrar la cantidad que quedó.
+    evento.target.value = item.cantidad
+  }
+}
+
 function cambiar (item, delta) {
   if (pos.cambiarCantidad(item.variante_id, delta) === 'sin-stock') beepError()
 }
@@ -669,6 +695,10 @@ defineExpose({ cobrar, enfocarCliente })
 }
 
 .linea__talla {
+  overflow: hidden;
+  max-width: 160px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   padding: 0 5px;
   border-radius: 4px;
   background: var(--app-border-subtle);
@@ -688,6 +718,24 @@ defineExpose({ cobrar, enfocarCliente })
   align-items: center;
   gap: 8px;
   margin-top: 6px;
+}
+
+.linea__cantidadInput {
+  width: 64px;
+  height: 26px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  text-align: center;
+  color: var(--app-ink);
+  -moz-appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+  }
 }
 
 .linea__cantidad {

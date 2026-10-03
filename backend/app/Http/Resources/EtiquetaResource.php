@@ -25,10 +25,11 @@ class EtiquetaResource extends JsonResource
             'codigo_barras' => $this->codigo_barras,
             'sku' => $this->sku,
             // Sólo informativo: ayuda a decidir cuántas imprimir.
-            'stock' => $this->stock,
+            'stock' => $this->stockVisible(),
             'producto' => $this->producto->only(['id', 'nombre']),
-            'talla' => $this->talla->nombre,
-            'color' => $this->color->only(['nombre', 'hexadecimal']),
+            'presentacion' => $this->presentacion,
+            'unidad' => $this->unidad->abreviatura,
+            'color' => $this->color?->only(['nombre', 'hexadecimal']),
         ];
     }
 }

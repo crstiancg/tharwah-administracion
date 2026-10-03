@@ -39,6 +39,10 @@ return [
         // El form de categorías lista las demás para elegir la categoría padre.
         'categorias.index' => ['categorias.store', 'categorias.update', 'productos.store', 'productos.update', 'productos.index', 'ventas.store', 'ofertas.store', 'ofertas.update'],
         'marcas.show' => ['marcas.update'],
+        'sedes.show' => ['sedes.update'],
+        // Elegir sede: al asignarla a un usuario, al cambiarse de sede, al
+        // trasladar y en los filtros de inventario, pedidos y cajas.
+        'sedes.index' => ['usuarios.store', 'usuarios.update', 'auth.cambiar-sede', 'inventario.traslados', 'inventario.index', 'inventario.lotes', 'pedidos.index', 'cajas.index'],
         'unidades.show' => ['unidades.update'],
         'productos.show' => ['productos.update'],
         'ofertas.show' => ['ofertas.update'],
@@ -52,9 +56,19 @@ return [
         'ventas.catalogo' => ['ventas.store'],
         // Los formularios de inventario buscan la variante de cada línea.
         // Los formularios de pedidos buscan variantes y clientes.
-        'inventario.variantes' => ['inventario.entradas', 'inventario.salidas', 'inventario.ajustes', 'pedidos.store', 'pedidos.update', 'ventas.store'],
-        'clientes.index' => ['pedidos.store', 'pedidos.update', 'ventas.store'],
+        // La salida manual elige de qué lote sacar.
+        'inventario.lotes' => ['inventario.salidas'],
+        'clientes.index' => ['pedidos.store', 'pedidos.update', 'ventas.store', 'cotizaciones.store', 'cotizaciones.update'],
         'clientes.show' => ['clientes.update'],
+        'proveedores.show' => ['proveedores.update'],
+        // El form de compras elige el proveedor.
+        'proveedores.index' => ['compras.store', 'compras.index'],
+        'proveedores.consultar-ruc' => ['proveedores.store', 'proveedores.update'],
+        // Quien ve la lista abre el detalle (como pedidos).
+        'compras.show' => ['compras.index', 'compras.anular'],
+        'cotizaciones.show' => ['cotizaciones.index', 'cotizaciones.update'],
+        // El form de cotizaciones busca clientes y presentaciones.
+        'inventario.variantes' => ['inventario.entradas', 'inventario.salidas', 'inventario.ajustes', 'inventario.traslados', 'pedidos.store', 'pedidos.update', 'ventas.store', 'compras.store', 'cotizaciones.store', 'cotizaciones.update', 'inventario.index'],
         // Autocompletar con RENIEC/SUNAT es parte de cargar un cliente.
         'clientes.consultar-documento' => ['clientes.store', 'clientes.update'],
         // A diferencia de los catálogos, quien ve la lista de pedidos puede
@@ -68,6 +82,8 @@ return [
 
     // Para la descripción que genera permisos:sync: "Roles · Crear".
     'recursos' => [
+        'auth' => 'Sesión',
+        'sedes' => 'Sedes',
         'roles' => 'Roles',
         'permisos' => 'Permisos',
         'usuarios' => 'Usuarios',
@@ -79,6 +95,10 @@ return [
         'ofertas' => 'Ofertas',
         'inventario' => 'Inventario',
         'clientes' => 'Clientes',
+        'proveedores' => 'Proveedores',
+        'compras' => 'Compras',
+        'cotizaciones' => 'Cotizaciones',
+        'reportes' => 'Reportes',
         'pedidos' => 'Pedidos',
         'cajas' => 'Caja',
         'ventas' => 'Punto de venta',
@@ -98,6 +118,9 @@ return [
         'entradas' => 'Registrar entradas',
         'salidas' => 'Registrar salidas',
         'ajustes' => 'Ajustar por conteo',
+        'traslados' => 'Trasladar entre sedes',
+        'lotes' => 'Ver lotes y vencimientos',
+        'cambiar-sede' => 'Cambiar de sede',
         'variantes' => 'Buscar presentaciones',
         'consultar-documento' => 'Consultar DNI/RUC',
         'confirmar' => 'Confirmar (descuenta stock)',
@@ -111,6 +134,13 @@ return [
         'movimientos' => 'Registrar ingresos y egresos',
         'catalogo' => 'Ver catálogo',
         'imprimir' => 'Imprimir códigos de barras',
+        'consultar-ruc' => 'Consultar RUC',
+        'anular' => 'Anular',
+        'convertir' => 'Convertir en pedido',
+        'rechazar' => 'Rechazar',
+        'ventas' => 'Ver ventas',
+        'productos' => 'Ver más vendidos',
+        'inventario' => 'Ver inventario valorizado',
     ],
 
 ];

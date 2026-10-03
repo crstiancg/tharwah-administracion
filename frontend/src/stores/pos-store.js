@@ -18,6 +18,11 @@ function redondear (n) {
   return Math.round(n * 100) / 100
 }
 
+// Cantidades: hasta 3 decimales (kg, m), sin ruido de flotantes.
+function redondearCantidad (n) {
+  return Math.round(n * 1000) / 1000
+}
+
 function numero (valor) {
   const n = Number(valor)
   return valor !== '' && valor !== null && Number.isFinite(n) ? n : 0
@@ -34,7 +39,9 @@ export function lineaDesdeCatalogo (producto, variante) {
     sku: variante.sku,
     codigo_barras: variante.codigo_barras ?? null,
     nombre: producto.nombre,
-    talla: variante.talla?.nombre ?? '',
+    presentacion: variante.presentacion ?? '',
+    unidad: variante.unidad?.abreviatura ?? '',
+    fraccionable: Boolean(variante.unidad?.fraccionable),
     color: variante.color ?? null,
     stock: variante.stock,
     // El de hoy (con oferta) y el de lista, para mostrar el ahorro.
@@ -51,7 +58,9 @@ export function lineaDesdeEscaner (variante) {
     sku: variante.sku,
     codigo_barras: variante.codigo_barras ?? null,
     nombre: variante.producto?.nombre ?? variante.sku,
-    talla: variante.talla ?? '',
+    presentacion: variante.presentacion ?? '',
+    unidad: variante.unidad?.abreviatura ?? '',
+    fraccionable: Boolean(variante.unidad?.fraccionable),
     color: variante.color ?? null,
     stock: variante.stock,
     precio_unitario: Number(variante.precio ?? 0).toFixed(2),
@@ -72,7 +81,7 @@ export const usePosStore = defineStore('pos', {
   }),
 
   getters: {
-    unidades: (s) => s.items.reduce((suma, i) => suma + i.cantidad, 0),
+    unidades: (s) => redondearCantidad(s.items.reduce((suma, i) => suma + i.cantidad, 0)),
     subtotal: (s) => redondear(s.items.reduce((suma, i) => suma + i.cantidad * numero(i.precio_unitario), 0)),
     total () {
       return Math.max(0, redondear(this.subtotal - numero(this.descuento)))
@@ -116,13 +125,33 @@ export const usePosStore = defineStore('pos', {
       const item = this.items.find((i) => i.variante_id === varianteId)
       if (!item) return 'ok'
 
-      const nueva = item.cantidad + delta
+      const nueva = redondearCantidad(item.cantidad + delta)
       if (nueva > item.stock) return 'sin-stock'
       if (nueva <= 0) {
         this.quitar(varianteId)
       } else {
         item.cantidad = nueva
       }
+      return 'ok'
+    },
+
+    /**
+     * Cantidad escrita a mano (2.5 kg). Sólo las unidades fraccionables
+     * aceptan decimales; las demás se redondean a entero.
+     *
+     * @returns {'ok'|'sin-stock'|'invalida'}
+     */
+    fijarCantidad (varianteId, valor) {
+      const item = this.items.find((i) => i.variante_id === varianteId)
+      if (!item) return 'ok'
+
+      let nueva = Number(valor)
+      if (!Number.isFinite(nueva) || nueva <= 0) return 'invalida'
+      nueva = item.fraccionable ? redondearCantidad(nueva) : Math.round(nueva)
+      if (nueva <= 0) return 'invalida'
+      if (nueva > item.stock) return 'sin-stock'
+
+      item.cantidad = nueva
       return 'ok'
     },
 
@@ -159,7 +188,7 @@ export const usePosStore = defineStore('pos', {
     },
 
     // ── Ventas en espera ──
-    // "Voy a buscar otra talla": se aparca el carrito y se atiende a otro.
+    // "Voy a buscar otro producto al almacén": se aparca el carrito y se atiende a otro.
     aparcar () {
       if (!this.items.length || this.espera.length >= MAX_ESPERA) return false
       this.espera.push({

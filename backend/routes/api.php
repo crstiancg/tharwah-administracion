@@ -5,6 +5,8 @@ use App\Http\Controllers\CajaController;
 use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\ColorController;
+use App\Http\Controllers\CompraController;
+use App\Http\Controllers\CotizacionController;
 use App\Http\Controllers\EtiquetaController;
 use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\MarcaController;
@@ -13,7 +15,10 @@ use App\Http\Controllers\PagoController;
 use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\PermisoController;
 use App\Http\Controllers\ProductoController;
+use App\Http\Controllers\ProveedorController;
+use App\Http\Controllers\ReporteController;
 use App\Http\Controllers\RolController;
+use App\Http\Controllers\SedeController;
 use App\Http\Controllers\UnidadController;
 use App\Http\Controllers\VentaController;
 use App\Http\Controllers\UserController;
@@ -29,6 +34,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
     Route::get('/user', [AuthController::class, 'user'])->name('auth.user');
     Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
+    Route::patch('/user/sede', [AuthController::class, 'cambiarSede'])->name('auth.cambiar-sede');
 
     Route::middleware(HandlePrecognitiveRequests::class)->group(function () {
         Route::apiResource('roles', RolController::class);
@@ -43,6 +49,7 @@ Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
         Route::apiResource('usuarios', UserController::class);
         Route::apiResource('colores', ColorController::class)->parameters(['colores' => 'color']);
         Route::apiResource('categorias', CategoriaController::class);
+        Route::apiResource('sedes', SedeController::class);
         Route::apiResource('marcas', MarcaController::class);
         Route::apiResource('unidades', UnidadController::class)->parameters(['unidades' => 'unidad']);
         Route::apiResource('productos', ProductoController::class);
@@ -53,11 +60,25 @@ Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
         Route::post('inventario/entradas', [InventarioController::class, 'entradas'])->name('inventario.entradas');
         Route::post('inventario/salidas', [InventarioController::class, 'salidas'])->name('inventario.salidas');
         Route::post('inventario/ajustes', [InventarioController::class, 'ajustes'])->name('inventario.ajustes');
+        Route::post('inventario/traslados', [InventarioController::class, 'traslados'])->name('inventario.traslados');
 
         // Va antes del resource: si no, {cliente} captura "consultar-documento".
         Route::get('clientes/consultar-documento', [ClienteController::class, 'consultarDocumento'])
             ->name('clientes.consultar-documento');
         Route::apiResource('clientes', ClienteController::class);
+
+        // Va antes del resource: si no, {proveedor} captura "consultar-ruc".
+        Route::get('proveedores/consultar-ruc', [ProveedorController::class, 'consultarRuc'])
+            ->name('proveedores.consultar-ruc');
+        Route::apiResource('proveedores', ProveedorController::class)->parameters(['proveedores' => 'proveedor']);
+
+        // Una compra no se edita ni se borra: se anula.
+        Route::apiResource('compras', CompraController::class)->only(['index', 'store', 'show']);
+
+        // Sin destroy: se rechaza o se convierte en pedido.
+        Route::apiResource('cotizaciones', CotizacionController::class)
+            ->parameters(['cotizaciones' => 'cotizacion'])
+            ->except(['destroy']);
 
         // Sin destroy: un pedido es historial de ventas, se cancela.
         Route::apiResource('pedidos', PedidoController::class)->except(['destroy']);
@@ -81,12 +102,21 @@ Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
     Route::get('cajas', [CajaController::class, 'index'])->name('cajas.index');
     Route::get('cajas/{caja}', [CajaController::class, 'show'])->name('cajas.show');
 
+    Route::post('compras/{compra}/anular', [CompraController::class, 'anular'])->name('compras.anular');
+    Route::post('cotizaciones/{cotizacion}/convertir', [CotizacionController::class, 'convertir'])->name('cotizaciones.convertir');
+    Route::post('cotizaciones/{cotizacion}/rechazar', [CotizacionController::class, 'rechazar'])->name('cotizaciones.rechazar');
+
+    Route::get('reportes/ventas', [ReporteController::class, 'ventas'])->name('reportes.ventas');
+    Route::get('reportes/productos', [ReporteController::class, 'productos'])->name('reportes.productos');
+    Route::get('reportes/inventario', [ReporteController::class, 'inventario'])->name('reportes.inventario');
+
     Route::post('pedidos/{pedido}/confirmar', [PedidoController::class, 'confirmar'])->name('pedidos.confirmar');
     Route::post('pedidos/{pedido}/entregar', [PedidoController::class, 'entregar'])->name('pedidos.entregar');
     Route::post('pedidos/{pedido}/cancelar', [PedidoController::class, 'cancelar'])->name('pedidos.cancelar');
 
     Route::get('inventario', [InventarioController::class, 'index'])->name('inventario.index');
     Route::get('inventario/variantes', [InventarioController::class, 'variantes'])->name('inventario.variantes');
+    Route::get('inventario/lotes', [InventarioController::class, 'lotes'])->name('inventario.lotes');
 
     // Las etiquetas se arman e imprimen en el navegador: acá sólo se buscan.
     Route::get('etiquetas', [EtiquetaController::class, 'index'])->name('etiquetas.imprimir');

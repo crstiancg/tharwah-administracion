@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Support\Ean13;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -33,10 +34,47 @@ class Variante extends Model
     {
         return [
             'precio' => 'decimal:2',
-            'stock' => 'integer',
-            'stock_minimo' => 'integer',
+            // float y no decimal:3: el front compara números (stock > 0).
+            'stock' => 'float',
+            'stock_minimo' => 'float',
             'costo_promedio' => 'decimal:4',
         ];
+    }
+
+    public function stocks(): HasMany
+    {
+        return $this->hasMany(Stock::class);
+    }
+
+    public function lotes(): HasMany
+    {
+        return $this->hasMany(Lote::class);
+    }
+
+    /**
+     * Agrega `stock_sede`: el stock en esa sede (0 si nunca tuvo).
+     */
+    public function scopeConStockDeSede(Builder $query, int $sedeId): void
+    {
+        if ($query->getQuery()->columns === null) {
+            $query->select('variantes.*');
+        }
+
+        $query->addSelect(['stock_sede' => Stock::query()
+            ->selectRaw('COALESCE(SUM(cantidad), 0)')
+            ->whereColumn('stocks.variante_id', 'variantes.id')
+            ->where('stocks.sede_id', $sedeId)]);
+    }
+
+    /**
+     * El stock que corresponde mostrar: el de la sede si se pidió con
+     * conStockDeSede(), si no el total de la empresa.
+     */
+    public function stockVisible(): float
+    {
+        return array_key_exists('stock_sede', $this->attributes)
+            ? (float) $this->attributes['stock_sede']
+            : (float) $this->stock;
     }
 
     public function movimientos(): HasMany

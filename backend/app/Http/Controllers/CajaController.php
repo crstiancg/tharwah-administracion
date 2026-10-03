@@ -28,8 +28,8 @@ class CajaController extends Controller
 
         return $this->generateViewSetList(
             $request,
-            Caja::query()->with(['abiertaPor:id,name', 'cerradaPor:id,name']),
-            ['estado'],
+            Caja::query()->with(['sede:id,nombre', 'abiertaPor:id,name', 'cerradaPor:id,name']),
+            ['estado', 'sede_id'],
             [],
             ['id'],
             CajaResource::class,
@@ -37,11 +37,12 @@ class CajaController extends Controller
     }
 
     /**
-     * La caja abierta con sus totales, o `{ caja: null }` si no hay.
+     * La caja abierta de la sede del usuario con sus totales, o
+     * `{ caja: null }` si no hay.
      */
-    public function actual(): JsonResponse
+    public function actual(Request $request): JsonResponse
     {
-        $caja = $this->cajas->actual();
+        $caja = $this->cajas->actual($request->user()->sedeOperativa());
 
         return response()->json(['caja' => $caja ? $this->conDetalle($caja) : null]);
     }
@@ -53,7 +54,7 @@ class CajaController extends Controller
 
     public function abrir(CajaRequest $request): JsonResponse
     {
-        $caja = $this->cajas->abrir((float) $request->validated('caja.monto_apertura'), $request->user());
+        $caja = $this->cajas->abrir($request->user()->sedeOperativa(), (float) $request->validated('caja.monto_apertura'), $request->user());
 
         return response()->json($this->conDetalle($caja), 201);
     }
@@ -75,7 +76,7 @@ class CajaController extends Controller
         $movimiento = $request->validated('movimiento');
         $this->cajas->movimiento($movimiento['tipo'], (float) $movimiento['monto'], $movimiento['concepto'], $request->user());
 
-        return response()->json($this->conDetalle($this->cajas->actual()), 201);
+        return response()->json($this->conDetalle($this->cajas->actual($request->user()->sedeOperativa())), 201);
     }
 
     /**
@@ -84,6 +85,7 @@ class CajaController extends Controller
     private function conDetalle(Caja $caja): array
     {
         $caja->load([
+            'sede:id,nombre',
             'abiertaPor:id,name',
             'cerradaPor:id,name',
             'pagos' => fn ($q) => $q->latest('id'),

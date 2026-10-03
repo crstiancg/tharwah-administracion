@@ -1,6 +1,6 @@
 <template>
   <div class="selector">
-    <!-- ── Foto grande: la del color que se está mirando ── -->
+    <!-- ── Foto grande: la de la presentación que se está mirando ── -->
     <figure class="selector__vista">
       <div
         class="selector__foto"
@@ -8,7 +8,7 @@
       >
         <q-icon
           v-if="!fotoVista"
-          name="checkroom"
+          name="inventory_2"
           size="44px"
         />
       </div>
@@ -17,109 +17,70 @@
           {{ producto.nombre }}
         </div>
         <div
+          v-if="producto.marca"
+          class="selector__marca"
+        >
+          {{ producto.marca.nombre }}
+        </div>
+        <div
           v-if="producto.oferta"
           class="selector__oferta"
         >
           {{ producto.oferta.etiqueta }} · {{ producto.oferta.nombre }}
         </div>
-        <div
-          v-if="colorVista"
-          class="selector__colorVista"
-        >
-          <span
-            class="selector__swatch"
-            :style="{ background: colorVista.hexadecimal }"
-          />
-          {{ colorVista.nombre }}
-        </div>
       </figcaption>
     </figure>
 
-    <!-- ── Talla × color ── -->
-    <div class="selector__grilla">
+    <!-- ── Presentaciones ── -->
+    <div class="selector__lista">
       <p class="selector__ayuda">
-        Tocá una combinación para sumar una unidad. Podés sumar varias antes de cerrar.
+        Tocá una presentación para sumar una unidad. Podés sumar varias antes de cerrar.
       </p>
 
-      <div class="selector__tablaWrap">
-        <table class="selector__tabla">
-          <thead>
-            <tr>
-              <th scope="col">
-                <span class="sr-only">Talla</span>
-              </th>
-              <th
-                v-for="color in colores"
-                :key="color.id"
-                scope="col"
-              >
-                <!-- La foto del color (o su muestra, si no tiene foto). -->
-                <button
-                  type="button"
-                  :class="['selector__colorCab', { 'selector__colorCab--activo': colorVista?.id === color.id }]"
-                  :aria-label="`Ver ${color.nombre}`"
-                  @mouseenter="verColor(color.id)"
-                  @focus="verColor(color.id)"
-                  @click="verColor(color.id)"
-                >
-                  <span
-                    class="selector__colorFoto"
-                    :style="fotoDeColor(color.id)
-                      ? { backgroundImage: `url(${fotoDeColor(color.id)})` }
-                      : { background: color.hexadecimal }"
-                  />
-                  <span class="selector__colorNombre">{{ color.nombre }}</span>
-                </button>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="talla in tallas"
-              :key="talla.id"
-            >
-              <th scope="row">
-                {{ talla.nombre }}
-              </th>
-              <td
-                v-for="color in colores"
-                :key="color.id"
-              >
-                <template v-if="celda(talla.id, color.id)">
-                  <button
-                    type="button"
-                    :class="['selector__celda', {
-                      'selector__celda--agotada': !disponible(celda(talla.id, color.id)),
-                      'selector__celda--flash': flash === celda(talla.id, color.id).id
-                    }]"
-                    :disabled="!disponible(celda(talla.id, color.id))"
-                    :aria-label="`Talla ${talla.nombre}, ${color.nombre}: ${celda(talla.id, color.id).stock} en stock`"
-                    @mouseenter="verColor(color.id)"
-                    @focus="verColor(color.id)"
-                    @click="agregar(celda(talla.id, color.id))"
-                  >
-                    <span class="selector__stock">
-                      {{ celda(talla.id, color.id).stock ? celda(talla.id, color.id).stock : 'Agotado' }}
-                    </span>
-                    <span
-                      v-if="precioDistinto(celda(talla.id, color.id))"
-                      :class="['selector__precio', 'text-mono', { 'selector__precio--oferta': enOferta(celda(talla.id, color.id)) }]"
-                    >{{ formatearPrecio(celda(talla.id, color.id).precio) }}</span>
-                    <span
-                      v-if="pos.cantidadDeVariante(celda(talla.id, color.id).id)"
-                      class="selector__enCarrito"
-                    >×{{ pos.cantidadDeVariante(celda(talla.id, color.id).id) }}</span>
-                  </button>
-                </template>
-                <span
-                  v-else
-                  class="selector__noExiste"
-                >—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <button
+        v-for="v in producto.variantes"
+        :key="v.id"
+        type="button"
+        :class="['selector__item', {
+          'selector__item--agotada': !disponible(v),
+          'selector__item--flash': flash === v.id
+        }]"
+        :disabled="!disponible(v)"
+        :aria-label="`${v.presentacion}${v.color ? `, ${v.color.nombre}` : ''}: ${v.stock} en stock, ${formatearPrecio(v.precio)}`"
+        @mouseenter="vistaId = v.id"
+        @focus="vistaId = v.id"
+        @click="agregar(v)"
+      >
+        <span
+          v-if="v.color"
+          class="selector__swatch"
+          :style="{ background: v.color.hexadecimal }"
+        />
+        <span class="selector__desc">
+          <span class="selector__presentacion">{{ v.presentacion }}</span>
+          <span class="selector__detalle">
+            <template v-if="v.color">{{ v.color.nombre }} · </template>
+            <span class="text-mono">{{ v.sku }}</span>
+          </span>
+        </span>
+        <span class="selector__stock">
+          <template v-if="v.stock">{{ v.stock }} {{ v.unidad?.abreviatura }}</template>
+          <template v-else>Agotado</template>
+        </span>
+        <span class="selector__precios">
+          <s
+            v-if="enOferta(v)"
+            class="selector__precioLista text-mono"
+          >{{ formatearPrecio(v.precio_lista) }}</s>
+          <span :class="['selector__precio', 'text-mono', { 'selector__precio--oferta': enOferta(v) }]">
+            {{ formatearPrecio(v.precio) }}
+          </span>
+        </span>
+        <span
+          v-if="pos.cantidadDeVariante(v.id)"
+          class="selector__enCarrito"
+        >×{{ pos.cantidadDeVariante(v.id) }}</span>
+      </button>
     </div>
   </div>
 </template>
@@ -131,10 +92,9 @@ import { formatearPrecio } from '@/utils/moneda'
 import { beepError, beepOk } from '@/utils/sonido'
 
 /**
- * Grilla talla × color de un producto con el stock de cada combinación y la
- * foto del color que se está mirando (en ropa el color se elige viendo la
- * prenda). Es el equivalente, para ropa, del "¿unidad o blíster?" de
- * sistema-botica.
+ * Las presentaciones de un producto (cartucho, galón, balde…) con su stock y
+ * su precio de hoy, para elegir cuál se vende. Es el equivalente del
+ * "¿unidad o blíster?" de sistema-botica.
  */
 const props = defineProps({
   // CatalogoProductoResource.
@@ -146,41 +106,12 @@ const props = defineProps({
 
 const pos = usePosStore()
 
-// Tallas en su orden (así vienen las variantes) y colores sin repetir.
-const tallas = computed(() => {
-  const vistas = new Map()
-  props.producto.variantes.forEach((v) => { if (v.talla) vistas.set(v.talla.id, v.talla) })
-  return [...vistas.values()]
-})
-const colores = computed(() => {
-  const vistos = new Map()
-  props.producto.variantes.forEach((v) => { if (v.color) vistos.set(v.color.id, v.color) })
-  return [...vistos.values()]
-})
-
-const porCelda = computed(() => new Map(props.producto.variantes.map((v) => [`${v.talla?.id}-${v.color?.id}`, v])))
-
-function celda (tallaId, colorId) {
-  return porCelda.value.get(`${tallaId}-${colorId}`)
-}
-
-// ── Fotos ──
-// El catálogo manda, por variante, su foto o (si no tiene) la del producto:
-// es foto del color sólo si es distinta de la del producto.
-function fotoDeColor (colorId) {
-  const conFoto = props.producto.variantes.find((v) =>
-    v.color?.id === colorId && v.miniatura_url && v.miniatura_url !== props.producto.miniatura_url)
-  return conFoto?.miniatura_url ?? null
-}
-
-// Arranca en el primer color con foto propia; si ninguno tiene, el primero.
-const colorVistaId = ref(colores.value.find((c) => fotoDeColor(c.id))?.id ?? colores.value[0]?.id ?? null)
-const colorVista = computed(() => colores.value.find((c) => c.id === colorVistaId.value) ?? null)
-const fotoVista = computed(() => (colorVista.value && fotoDeColor(colorVista.value.id)) || props.producto.miniatura_url)
-
-function verColor (colorId) {
-  colorVistaId.value = colorId
-}
+// ── Foto ──
+// El catálogo manda, por presentación, su foto o (si no tiene) la del
+// producto. Arranca en la primera con stock.
+const vistaId = ref(props.producto.variantes.find((v) => v.stock > 0)?.id ?? props.producto.variantes[0]?.id ?? null)
+const fotoVista = computed(() =>
+  props.producto.variantes.find((v) => v.id === vistaId.value)?.miniatura_url ?? props.producto.miniatura_url)
 
 // Sin ninguna foto: el mismo degradé que la tarjeta del catálogo.
 const fondoSinFoto = computed(() => {
@@ -194,16 +125,11 @@ function disponible (variante) {
   return variante.stock - pos.cantidadDeVariante(variante.id) > 0
 }
 
-// Se muestra el precio de la celda si difiere del base o si está en oferta.
-function precioDistinto (variante) {
-  return Number(variante.precio) !== Number(props.producto.precio) || enOferta(variante)
-}
-
 function enOferta (variante) {
   return Number(variante.precio) < Number(variante.precio_lista)
 }
 
-// Destello en la celda recién sumada.
+// Destello en la fila recién sumada.
 const flash = ref(null)
 let flashTimer
 
@@ -223,7 +149,7 @@ function agregar (variante) {
 <style lang="scss" scoped>
 .selector {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
   align-items: start;
   gap: 20px;
 
@@ -269,121 +195,49 @@ function agregar (variante) {
   color: var(--app-ink);
 }
 
-.selector__colorVista {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.selector__marca {
   margin-top: 2px;
   font-size: 13px;
   color: var(--app-ink-2);
 }
 
-.selector__swatch {
+.selector__oferta {
   display: inline-block;
-  width: 12px;
-  height: 12px;
-  border: 1px solid var(--app-border-control);
-  border-radius: 50%;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #DC2626;
+  font-size: 12px;
+  font-weight: 700;
+  color: #FFFFFF;
 }
 
-// ── Grilla ──
-.selector__grilla {
+// ── Lista ──
+.selector__lista {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
 .selector__ayuda {
-  margin: 0;
+  margin: 0 0 2px;
   font-size: 12px;
   color: var(--app-ink-2);
 }
 
-.selector__tablaWrap {
-  overflow-x: auto;
-}
-
-.selector__tabla {
-  border-collapse: separate;
-  border-spacing: 6px;
-  margin: -6px;
-
-  th {
-    font-size: 12px;
-    font-weight: 600;
-    white-space: nowrap;
-    color: var(--app-ink-2);
-  }
-
-  thead th {
-    padding-bottom: 2px;
-    text-align: center;
-    vertical-align: bottom;
-  }
-
-  tbody th {
-    padding-right: 6px;
-    font-size: 14px;
-    text-align: right;
-    color: var(--app-ink);
-  }
-}
-
-// Cabecera de color: la foto del color como botón (mirar sin agregar).
-.selector__colorCab {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  width: 84px;
-  padding: 4px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: none;
-  cursor: pointer;
-
-  &:focus-visible {
-    outline: 2px solid $primary;
-    outline-offset: 1px;
-  }
-
-  &--activo {
-    border-color: $primary;
-    background: rgba($primary, 0.06);
-  }
-}
-
-.selector__colorFoto {
-  width: 52px;
-  height: 52px;
-  border: 1px solid var(--app-border-control);
-  border-radius: 10px;
-  background-position: center;
-  background-size: cover;
-}
-
-.selector__colorNombre {
-  max-width: 76px;
-  overflow: hidden;
-  font-size: 11.5px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  color: var(--app-ink);
-}
-
-.selector__celda {
+.selector__item {
   position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  width: 84px;
-  height: 52px;
-  padding: 0;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 14px;
   border: 1px solid var(--app-border-control);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--app-surface);
+  text-align: left;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 
@@ -399,7 +253,7 @@ function agregar (variante) {
 
   &--agotada {
     cursor: not-allowed;
-    opacity: 0.4;
+    opacity: 0.45;
   }
 
   &--flash {
@@ -408,31 +262,63 @@ function agregar (variante) {
   }
 }
 
-.selector__stock {
-  font-size: 13px;
+.selector__swatch {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--app-border-control);
+  border-radius: 50%;
+}
+
+.selector__desc {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.selector__presentacion {
+  font-size: 14px;
   font-weight: 600;
   color: var(--app-ink);
 }
 
-.selector__precio {
-  font-size: 10.5px;
+.selector__detalle {
+  overflow: hidden;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--app-ink-2);
-
-  &--oferta {
-    font-weight: 700;
-    color: #DC2626;
-  }
 }
 
-.selector__oferta {
-  display: inline-block;
-  margin-top: 4px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: #DC2626;
-  font-size: 12px;
+.selector__stock {
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--app-ink-2);
+}
+
+.selector__precios {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 76px;
+}
+
+.selector__precioLista {
+  font-size: 11px;
+  color: var(--app-ink-2);
+}
+
+.selector__precio {
+  font-size: 14px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: var(--app-ink);
+
+  &--oferta {
+    color: #DC2626;
+  }
 }
 
 .selector__enCarrito {
@@ -446,21 +332,5 @@ function agregar (variante) {
   font-size: 11px;
   font-weight: 700;
   color: #FFFFFF;
-}
-
-.selector__noExiste {
-  display: block;
-  width: 84px;
-  text-align: center;
-  color: var(--app-ink-2);
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }
 </style>

@@ -10,11 +10,13 @@ return new class extends Migration
     {
         Schema::create('cajas', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('sede_id')->constrained('sedes')->restrictOnDelete();
             $table->string('estado', 10);
             // true mientras está abierta, NULL al cerrarse. El unique hace
-            // que la BASE garantice una sola caja abierta: dos "Abrir caja"
-            // simultáneos no pueden ganar los dos (NULL no choca con NULL).
-            $table->boolean('abierta')->nullable()->unique();
+            // que la BASE garantice una sola caja abierta por sede: dos
+            // "Abrir caja" simultáneos no pueden ganar los dos (NULL no
+            // choca con NULL).
+            $table->boolean('abierta')->nullable();
             $table->decimal('monto_apertura', 12, 2);
             $table->foreignId('abierta_por')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('abierta_at');
@@ -27,6 +29,8 @@ return new class extends Migration
             $table->foreignId('cerrada_por')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('cerrada_at')->nullable();
             $table->timestamps();
+
+            $table->unique(['sede_id', 'abierta']);
         });
 
         // Pagos de pedidos. INMUTABLES: un error se corrige con una devolución

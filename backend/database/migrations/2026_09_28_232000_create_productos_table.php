@@ -32,9 +32,11 @@ return new class extends Migration
             // null = usa el precio base del producto.
             $table->decimal('precio', 10, 2)->nullable();
             // No se edita a mano: lo van a mover los movimientos de inventario.
-            $table->integer('stock')->default(0);
-            // Por debajo de esto, la presentación aparece en "por reponer".
-            $table->unsignedInteger('stock_minimo')->default(0);
+            // Total de la empresa (suma de `stocks`, por sede). Decimal por las
+            // unidades fraccionables.
+            $table->decimal('stock', 12, 3)->default(0);
+            // Por sede: por debajo de esto, la presentación aparece en "por reponer".
+            $table->decimal('stock_minimo', 12, 3)->default(0);
             $table->timestamps();
 
             // Con color null MySQL no lo hace cumplir: también lo valida

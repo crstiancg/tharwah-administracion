@@ -36,7 +36,9 @@ export const useUserStore = defineStore('user', {
     username: null,
     email: null,
     roles: null,
-    permisos: null
+    permisos: null,
+    // { id, nombre, direccion, telefono }: donde opera (POS, caja, stock).
+    sede: null
   }),
 
   getters: {
@@ -45,7 +47,8 @@ export const useUserStore = defineStore('user', {
     getEmail: (state) => state.email,
     getRoles: (state) => state.roles,
     getPermisos: (state) => state.permisos,
-    initials: (state) => initialsOf(state.name)
+    initials: (state) => initialsOf(state.name),
+    sedeId: (state) => state.sede?.id ?? null
   },
 
   actions: {
@@ -119,6 +122,16 @@ export const useUserStore = defineStore('user', {
       this.email = payload.user.email
       this.roles = payload.roles ?? []
       this.permisos = payload.permisos ?? []
+      this.sede = payload.user.sede ?? null
+    },
+
+    /**
+     * Pasa a operar en otra sede. Quien llama recarga los datos: el stock,
+     * la caja y el catálogo cambian con la sede.
+     */
+    async cambiarSede (sedeId) {
+      const { data } = await api.patch('api/user/sede', { sede_id: sedeId })
+      this.sede = data
     },
 
     clearUser () {

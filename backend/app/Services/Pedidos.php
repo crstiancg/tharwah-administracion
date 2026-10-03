@@ -30,7 +30,14 @@ class Pedidos
 
             $pedido->fill($datos);
             if ($nuevo) {
-                $pedido->forceFill(['estado' => Pedido::PENDIENTE, 'user_id' => $usuario?->id, 'subtotal' => 0, 'total' => 0]);
+                // Vende la sede del usuario: de ahí sale la mercadería.
+                $pedido->forceFill([
+                    'estado' => Pedido::PENDIENTE,
+                    'sede_id' => $usuario?->sedeOperativa(),
+                    'user_id' => $usuario?->id,
+                    'subtotal' => 0,
+                    'total' => 0,
+                ]);
             }
             $pedido->save();
 
@@ -42,7 +49,7 @@ class Pedidos
             $pedido->items()->delete();
             $subtotal = 0.0;
             foreach ($datos['items'] as $item) {
-                $linea = round((int) $item['cantidad'] * (float) $item['precio_unitario'], 2);
+                $linea = round((float) $item['cantidad'] * (float) $item['precio_unitario'], 2);
                 $subtotal += $linea;
 
                 $pedido->items()->create([
@@ -75,8 +82,8 @@ class Pedidos
     }
 
     /**
-     * Descuenta el stock (salida con motivo "venta") y congela el costo de
-     * cada ítem. Todo o nada: con un ítem sin stock no se confirma nada.
+     * Descuenta el stock de la sede del pedido (salida con motivo "venta") y
+     * congela el costo de cada ítem. Todo o nada: con un ítem sin stock no se confirma nada.
      */
     public function confirmar(Pedido $pedido, ?User $usuario): Pedido
     {
@@ -89,6 +96,7 @@ class Pedidos
 
             try {
                 $this->inventario->salida(
+                    $pedido->sede_id,
                     $items->map(fn ($i) => ['variante_id' => $i->variante_id, 'cantidad' => $i->cantidad])->all(),
                     MovimientoInventario::MOTIVO_VENTA,
                     $pedido->codigo,
@@ -156,12 +164,21 @@ class Pedidos
             }
 
             if ($pedido->estado === Pedido::CONFIRMADO) {
+                // La mercadería vuelve a los lotes de los que salió.
+                $ventas = $pedido->movimientos()
+                    ->where('motivo', MovimientoInventario::MOTIVO_VENTA)
+                    ->with('lotes')
+                    ->get()
+                    ->keyBy('variante_id');
+
                 $this->inventario->entrada(
+                    $pedido->sede_id,
                     $pedido->items()->get()->map(fn ($i) => [
                         'variante_id' => $i->variante_id,
                         'cantidad' => $i->cantidad,
                         // Sin costo conocido, la devolución no toca el promedio.
                         'costo_unitario' => $i->costo_unitario,
+                        'lotes' => Inventario::lotesDe($ventas[$i->variante_id] ?? null),
                     ])->all(),
                     $pedido->codigo,
                     null,
