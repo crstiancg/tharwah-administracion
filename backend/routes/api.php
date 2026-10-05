@@ -12,6 +12,7 @@ use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\MarcaController;
 use App\Http\Controllers\OfertaController;
 use App\Http\Controllers\PagoController;
+use App\Http\Controllers\PanelController;
 use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\PermisoController;
 use App\Http\Controllers\ProductoController;
@@ -35,6 +36,12 @@ Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
     Route::get('/user', [AuthController::class, 'user'])->name('auth.user');
     Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
     Route::patch('/user/sede', [AuthController::class, 'cambiarSede'])->name('auth.cambiar-sede');
+
+    // Dashboard, campana y búsqueda global: sólo piden sesión (permisos.libres);
+    // cada bloque se filtra adentro según lo que el usuario puede ver.
+    Route::get('panel/dashboard', [PanelController::class, 'dashboard'])->name('panel.dashboard');
+    Route::get('panel/alertas', [PanelController::class, 'alertas'])->name('panel.alertas');
+    Route::get('panel/buscar', [PanelController::class, 'buscar'])->name('panel.buscar');
 
     Route::middleware(HandlePrecognitiveRequests::class)->group(function () {
         Route::apiResource('roles', RolController::class);

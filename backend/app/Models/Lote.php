@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Fechas;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -34,7 +35,7 @@ class Lote extends Model
 
     public function vencido(): bool
     {
-        return $this->vence_at !== null && $this->vence_at->lt(today());
+        return $this->vence_at !== null && $this->vence_at->lt(Fechas::hoy());
     }
 
     /**
@@ -45,7 +46,7 @@ class Lote extends Model
         return match (true) {
             $this->vence_at === null => 'sin_fecha',
             $this->vencido() => 'vencido',
-            $this->vence_at->lte(today()->addDays(self::DIAS_POR_VENCER)) => 'por_vencer',
+            $this->vence_at->lte(Fechas::hoy()->addDays(self::DIAS_POR_VENCER)) => 'por_vencer',
             default => 'vigente',
         };
     }

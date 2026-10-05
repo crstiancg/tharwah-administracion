@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Igv;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -35,12 +36,26 @@ class Pedido extends Model
         'cotizacion' => 'Cotización',
     ];
 
+    /**
+     * El desglose del IGV sigue al total, se guarde por donde se guarde.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $documento) {
+            if ($documento->isDirty('total') || ! $documento->exists) {
+                $documento->forceFill(Igv::desglosar($documento->total));
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [
             'subtotal' => 'decimal:2',
             'descuento' => 'decimal:2',
             'total' => 'decimal:2',
+            'op_gravada' => 'decimal:2',
+            'igv' => 'decimal:2',
             'confirmado_at' => 'datetime',
             'entregado_at' => 'datetime',
             'cancelado_at' => 'datetime',

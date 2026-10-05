@@ -66,6 +66,10 @@
           :value="String(ventas.resumen.ventas)"
         />
         <AppStatTile
+          label="IGV de las ventas"
+          :value="formatearPrecio(ventas.resumen.igv)"
+        />
+        <AppStatTile
           label="Ticket promedio"
           :value="formatearPrecio(ventas.resumen.ticket_promedio)"
         />

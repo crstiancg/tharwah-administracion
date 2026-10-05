@@ -33,6 +33,9 @@ class PedidoResource extends JsonResource
             'subtotal' => $this->subtotal,
             'descuento' => $this->descuento,
             'total' => $this->total,
+            // IGV incluido en el total: base imponible + IGV = total.
+            'op_gravada' => $this->op_gravada,
+            'igv' => $this->igv,
             // Cobrado neto (devoluciones restan) y lo que falta cobrar.
             'pagado' => $this->when(($pagado = $this->pagadoCargado()) !== null, fn () => number_format($pagado, 2, '.', '')),
             'saldo' => $this->when($pagado !== null, fn () => number_format((float) $this->total - $pagado, 2, '.', '')),

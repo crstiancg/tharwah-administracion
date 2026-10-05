@@ -18,6 +18,10 @@ return [
     'libres' => [
         'auth.user',
         'auth.logout',
+        // Filtran adentro por permiso (App\Support\Permisos).
+        'panel.dashboard',
+        'panel.alertas',
+        'panel.buscar',
     ],
 
     // Permisos que también habilitan otra ruta: "esta ruta se permite a

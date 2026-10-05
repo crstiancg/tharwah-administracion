@@ -13,6 +13,7 @@ use App\Models\Producto;
 use App\Services\Cajas;
 use App\Services\Pedidos;
 use App\Services\Precios;
+use App\Support\Fechas;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,7 +46,7 @@ class VentaController extends Controller
             'categoria:id,nombre',
             'marca:id,nombre',
             'archivos',
-            'variantes' => fn ($q) => $q->habilitadaEnSede($sedeId)->conStockDeSede($sedeId)->orderBy('variantes.id'),
+            'variantes' => fn ($q) => $q->habilitadaEnSede($sedeId)->conStockDeSede($sedeId)->conStockVencidoDeSede($sedeId)->orderBy('variantes.id'),
             'variantes.unidad:id,nombre,abreviatura',
             'variantes.color:id,nombre,hexadecimal',
             'variantes.stocks' => fn ($q) => $q->where('sede_id', '!=', $sedeId)->where('cantidad', '>', 0)->where('activo', true),
@@ -73,7 +74,7 @@ class VentaController extends Controller
                 'url' => $disco->url($a->ruta),
                 'miniatura_url' => $disco->url($a->miniatura ?? $a->ruta),
             ])->values(),
-            'variantes' => $producto->variantes->map(function ($v) use ($producto, $precios, $lotes, $disco) {
+            'variantes' => $producto->variantes->map(function ($v) use ($producto, $precios, $lotes) {
                 $vigente = $precios->vigente($v->precioBase((float) $producto->precio), $producto->id, $producto->categoria_id, $v->id);
 
                 return [
@@ -86,7 +87,9 @@ class VentaController extends Controller
                     'precio' => $vigente['precio'],
                     'precio_lista' => $vigente['precio_lista'],
                     'oferta' => $vigente['oferta']?->etiqueta(),
-                    'stock' => $v->stockVisible(),
+                    // Vendible (sin lo vencido) y, aparte, lo vencido.
+                    'stock' => $v->stockVendible(),
+                    'stock_vencido' => (float) ($v->stock_vencido ?? 0),
                     'otras_sedes' => $v->stocks->map(fn ($s) => [
                         'sede' => $s->sede?->nombre,
                         'cantidad' => (float) $s->cantidad,
@@ -125,6 +128,13 @@ class VentaController extends Controller
             ->select('productos.*')
             ->addSelect(['vendidos' => $vendidos])
             ->withSum(['stocks as stock_total' => fn ($q) => $q->where('stocks.sede_id', $sedeId)], 'cantidad')
+            // Lo vencido no se vende: la tarjeta muestra el stock sin eso.
+            ->addSelect(['stock_vencido' => Lote::query()
+                ->selectRaw('COALESCE(SUM(lotes.cantidad), 0)')
+                ->join('variantes', 'variantes.id', '=', 'lotes.variante_id')
+                ->whereColumn('variantes.producto_id', 'productos.id')
+                ->where('lotes.sede_id', $sedeId)
+                ->whereDate('lotes.vence_at', '<', Fechas::hoy())])
             ->where('activo', true)
             // Sólo lo que esta sede vende.
             ->whereHas('variantes', fn (Builder $v) => $v->habilitadaEnSede($sedeId))
@@ -132,7 +142,7 @@ class VentaController extends Controller
                 'categoria:id,nombre',
                 'marca:id,nombre',
                 'portada',
-                'variantes' => fn ($q) => $q->habilitadaEnSede($sedeId)->conStockDeSede($sedeId)->orderBy('variantes.id'),
+                'variantes' => fn ($q) => $q->habilitadaEnSede($sedeId)->conStockDeSede($sedeId)->conStockVencidoDeSede($sedeId)->orderBy('variantes.id'),
                 'variantes.unidad:id,nombre,abreviatura,fraccionable',
                 'variantes.color:id,nombre,hexadecimal',
                 'variantes.portada',

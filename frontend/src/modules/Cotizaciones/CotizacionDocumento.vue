@@ -94,6 +94,10 @@
         <dt>Descuento</dt>
         <dd>−{{ formatearPrecio(cotizacion.descuento) }}</dd>
       </template>
+      <dt>Op. gravada</dt>
+      <dd>{{ formatearPrecio(desgloseDe(cotizacion).opGravada) }}</dd>
+      <dt>{{ ETIQUETA_IGV }}</dt>
+      <dd>{{ formatearPrecio(desgloseDe(cotizacion).igv) }}</dd>
       <dt class="cot-doc__total">
         TOTAL
       </dt>
@@ -121,6 +125,7 @@
 import { TIENDA } from '@/config/tienda'
 import { formatearCantidad } from '@/utils/cantidad'
 import { formatearPrecio } from '@/utils/moneda'
+import { desgloseDe, ETIQUETA_IGV } from '@/utils/igv'
 import { fechaCorta } from './constantes'
 
 defineProps({

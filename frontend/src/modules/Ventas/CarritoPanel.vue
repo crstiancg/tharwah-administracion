@@ -237,6 +237,14 @@
       >
         {{ errores['venta.descuento'][0] }}
       </p>
+      <div class="carrito__fila carrito__fila--igv">
+        <span>Op. gravada</span>
+        <span class="text-mono">{{ formatearPrecio(igvCarrito.opGravada) }}</span>
+      </div>
+      <div class="carrito__fila carrito__fila--igv">
+        <span>{{ ETIQUETA_IGV }}</span>
+        <span class="text-mono">{{ formatearPrecio(igvCarrito.igv) }}</span>
+      </div>
       <div class="carrito__total">
         <span>Total</span>
         <span class="text-mono">{{ formatearPrecio(pos.total) }}</span>
@@ -459,6 +467,7 @@ import VentaService from '@/services/VentaService'
 import { usePosStore } from '@/stores/pos-store'
 import { useUserStore } from '@/stores/user-store'
 import { formatearPrecio } from '@/utils/moneda'
+import { desglosarIgv, ETIQUETA_IGV } from '@/utils/igv'
 import { beepError } from '@/utils/sonido'
 
 /**
@@ -557,6 +566,9 @@ onMounted(async () => {
 })
 
 // ── Carrito ──
+// IGV incluido en los precios: el total no cambia, se desglosa.
+const igvCarrito = computed(() => desglosarIgv(pos.total))
+
 function fijar (item, evento) {
   const resultado = pos.fijarCantidad(item.variante_id, evento.target.value)
   if (resultado !== 'ok') {
@@ -1064,6 +1076,11 @@ defineExpose({ cobrar, enfocarCliente })
   &--sobra {
     color: var(--q-negative);
   }
+}
+
+.carrito__fila--igv {
+  font-size: 12px;
+  color: var(--app-ink-2);
 }
 
 .carrito__caja {

@@ -6,6 +6,7 @@ use App\Models\Archivo;
 use App\Models\Producto;
 use App\Models\Stock;
 use App\Models\Variante;
+use App\Support\Fechas;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -154,7 +155,7 @@ class StoreProductoRequest extends FormRequest
             // Con lotes, el stock inicial entra a un lote (igual que una entrada).
             $conLote = Rule::requiredIf(fn () => $this->stockInicialConLote($i));
             $rules["producto.variantes.{$i}.lote"] = [$conLote, 'nullable', 'string', 'max:40'];
-            $rules["producto.variantes.{$i}.vence_at"] = [$conLote, 'nullable', 'date', 'after_or_equal:today'];
+            $rules["producto.variantes.{$i}.vence_at"] = [$conLote, 'nullable', 'date', 'after_or_equal:'.Fechas::hoyIso()];
             $rules = [...$rules, ...$this->reglasArchivos("producto.variantes.{$i}.archivos")];
         }
 

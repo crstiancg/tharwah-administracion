@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Igv;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -23,11 +24,25 @@ class Compra extends Model
         'otro' => 'Otro',
     ];
 
+    /**
+     * El desglose del IGV sigue al total, se guarde por donde se guarde.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $documento) {
+            if ($documento->isDirty('total') || ! $documento->exists) {
+                $documento->forceFill(Igv::desglosar($documento->total));
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [
             'fecha' => 'date',
             'total' => 'decimal:2',
+            'op_gravada' => 'decimal:2',
+            'igv' => 'decimal:2',
             'anulada_at' => 'datetime',
         ];
     }

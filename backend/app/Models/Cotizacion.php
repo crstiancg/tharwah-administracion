@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\Igv;
+use App\Support\Fechas;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -29,6 +31,18 @@ class Cotizacion extends Model
      */
     protected $table = 'cotizaciones';
 
+    /**
+     * El desglose del IGV sigue al total, se guarde por donde se guarde.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $documento) {
+            if ($documento->isDirty('total') || ! $documento->exists) {
+                $documento->forceFill(Igv::desglosar($documento->total));
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [
@@ -36,12 +50,14 @@ class Cotizacion extends Model
             'subtotal' => 'decimal:2',
             'descuento' => 'decimal:2',
             'total' => 'decimal:2',
+            'op_gravada' => 'decimal:2',
+            'igv' => 'decimal:2',
         ];
     }
 
     public function vencida(): bool
     {
-        return $this->estado === self::PENDIENTE && $this->valida_hasta->lt(today());
+        return $this->estado === self::PENDIENTE && $this->valida_hasta->lt(Fechas::hoy());
     }
 
     /** pendiente | vencida | convertida | rechazada */

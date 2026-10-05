@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Lote;
+use App\Support\Fechas;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -21,7 +22,7 @@ class LoteResource extends JsonResource
             'codigo' => $this->codigo,
             'vence_at' => $this->vence_at?->toDateString(),
             // Negativo = vencido hace N días.
-            'dias' => $this->vence_at ? (int) today()->diffInDays($this->vence_at, false) : null,
+            'dias' => $this->vence_at ? (int) Fechas::hoy()->diffInDays($this->vence_at, false) : null,
             'estado' => $this->estado(),
             'cantidad' => $this->cantidad,
             'sede' => $this->whenLoaded('sede', fn () => $this->sede?->only(['id', 'nombre'])),

@@ -28,6 +28,9 @@ class CompraResource extends JsonResource
             'numero_documento' => $this->numero_documento,
             'fecha' => $this->fecha?->toDateString(),
             'total' => $this->total,
+            // IGV incluido en el total: base imponible + IGV = total.
+            'op_gravada' => $this->op_gravada,
+            'igv' => $this->igv,
             'observacion' => $this->observacion,
             'proveedor' => $this->whenLoaded('proveedor', fn () => $this->proveedor?->only(['id', 'ruc', 'razon_social', 'telefono', 'direccion'])),
             'sede' => $this->whenLoaded('sede', fn () => $this->sede?->only(['id', 'nombre'])),

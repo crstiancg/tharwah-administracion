@@ -32,6 +32,9 @@ class CotizacionResource extends JsonResource
             'subtotal' => $this->subtotal,
             'descuento' => $this->descuento,
             'total' => $this->total,
+            // IGV incluido en el total: base imponible + IGV = total.
+            'op_gravada' => $this->op_gravada,
+            'igv' => $this->igv,
             'items_count' => $this->whenCounted('items'),
             // Con VarianteStockResource: el form edita los ítems igual que
             // los de un pedido (producto, presentación, stock de hoy).

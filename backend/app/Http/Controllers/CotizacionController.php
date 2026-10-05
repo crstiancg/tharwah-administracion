@@ -6,6 +6,7 @@ use App\Http\Requests\StoreCotizacionRequest;
 use App\Http\Resources\CotizacionResource;
 use App\Models\Cotizacion;
 use App\Services\Cotizaciones;
+use App\Support\Fechas;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,9 +36,9 @@ class CotizacionController extends Controller
 
         // "vencida" no es una columna: pendiente con la validez pasada.
         if ($request->input('estado') === 'vencida') {
-            $query->where('estado', Cotizacion::PENDIENTE)->whereDate('valida_hasta', '<', today());
+            $query->where('estado', Cotizacion::PENDIENTE)->whereDate('valida_hasta', '<', Fechas::hoy());
         } elseif ($request->input('estado') === Cotizacion::PENDIENTE) {
-            $query->where('estado', Cotizacion::PENDIENTE)->whereDate('valida_hasta', '>=', today());
+            $query->where('estado', Cotizacion::PENDIENTE)->whereDate('valida_hasta', '>=', Fechas::hoy());
         } elseif ($request->filled('estado')) {
             $query->where('estado', $request->input('estado'));
         }

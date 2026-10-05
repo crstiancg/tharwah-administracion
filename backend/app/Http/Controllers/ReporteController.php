@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Lote;
 use App\Models\Pago;
 use App\Models\Pedido;
+use App\Support\Fechas;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,7 +27,7 @@ class ReporteController extends Controller
         [$desde, $hasta, $sedeId] = $this->filtros($request);
 
         $resumen = $this->pedidos($desde, $hasta, $sedeId)
-            ->selectRaw('COUNT(*) as ventas, COALESCE(SUM(total), 0) as total, COALESCE(SUM(descuento), 0) as descuentos')
+            ->selectRaw('COUNT(*) as ventas, COALESCE(SUM(total), 0) as total, COALESCE(SUM(descuento), 0) as descuentos, COALESCE(SUM(op_gravada), 0) as op_gravada, COALESCE(SUM(igv), 0) as igv')
             ->first();
 
         // Costo congelado al confirmar. Los ítems sin costo (stock que entró
@@ -62,6 +63,9 @@ class ReporteController extends Controller
                 'ventas' => (int) $resumen->ventas,
                 'total' => round($total, 2),
                 'descuentos' => round((float) $resumen->descuentos, 2),
+                // IGV incluido en las ventas del período (lo que se le debe a SUNAT).
+                'op_gravada' => round((float) $resumen->op_gravada, 2),
+                'igv' => round((float) $resumen->igv, 2),
                 'ticket_promedio' => $resumen->ventas ? round($total / $resumen->ventas, 2) : 0,
                 'costo' => round((float) $costos->costo, 2),
                 'ganancia' => round($total - (float) $costos->costo, 2),
@@ -69,8 +73,9 @@ class ReporteController extends Controller
                 'items_sin_costo' => (int) $costos->sin_costo,
             ],
             'por_dia' => $this->pedidos($desde, $hasta, $sedeId)
-                ->selectRaw('DATE(confirmado_at) as fecha, COUNT(*) as ventas, SUM(total) as total')
-                ->groupByRaw('DATE(confirmado_at)')
+                // El día local, no el UTC (una venta de las 20:00 en Lima es de hoy).
+                ->selectRaw("DATE(DATE_ADD(confirmado_at, INTERVAL {$this->desfase()} MINUTE)) as fecha, COUNT(*) as ventas, SUM(total) as total")
+                ->groupByRaw("DATE(DATE_ADD(confirmado_at, INTERVAL {$this->desfase()} MINUTE))")
                 ->orderBy('fecha')
                 ->get()
                 ->map(fn ($f) => ['fecha' => (string) $f->fecha, 'ventas' => (int) $f->ventas, 'total' => round((float) $f->total, 2)]),
@@ -195,7 +200,7 @@ class ReporteController extends Controller
         $vencidos = Lote::query()
             ->join('variantes', 'variantes.id', '=', 'lotes.variante_id')
             ->where('lotes.cantidad', '>', 0)
-            ->whereDate('lotes.vence_at', '<', today())
+            ->whereDate('lotes.vence_at', '<', Fechas::hoy())
             ->when($sedeId, fn ($q) => $q->where('lotes.sede_id', $sedeId))
             ->selectRaw('COUNT(*) as lotes, COALESCE(SUM(lotes.cantidad * COALESCE(variantes.costo_promedio, 0)), 0) as valor')
             ->first();
@@ -215,6 +220,15 @@ class ReporteController extends Controller
     }
 
     /**
+     * Minutos entre UTC y la zona del negocio (Lima: -300), para agrupar por
+     * día local en SQL sin depender de las tablas de zonas de MySQL.
+     */
+    private function desfase(): int
+    {
+        return (int) now(Fechas::zona())->utcOffset();
+    }
+
+    /**
      * Rango (por defecto, el mes en curso) y sede.
      *
      * @return array{0: Carbon, 1: Carbon, 2: ?int}
@@ -228,8 +242,9 @@ class ReporteController extends Controller
         ]);
 
         return [
-            $request->filled('desde') ? $request->date('desde')->startOfDay() : today()->startOfMonth(),
-            $request->filled('hasta') ? $request->date('hasta')->endOfDay() : today()->endOfDay(),
+            // Días locales (Lima) pasados a UTC: así se guardan las fechas.
+            Fechas::inicioDelDia($request->filled('desde') ? $request->date('desde') : Fechas::hoy()->startOfMonth()),
+            Fechas::finDelDia($request->filled('hasta') ? $request->date('hasta') : null),
             $request->integer('sede_id') ?: null,
         ];
     }

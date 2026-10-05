@@ -6,17 +6,18 @@ use App\Http\Requests\RegistrarAjusteRequest;
 use App\Http\Requests\RegistrarEntradaRequest;
 use App\Http\Requests\RegistrarSalidaRequest;
 use App\Http\Requests\RegistrarTrasladoRequest;
+use App\Http\Resources\LoteResource;
 use App\Http\Resources\MovimientoResource;
 use App\Http\Resources\VarianteStockResource;
-use App\Http\Resources\LoteResource;
 use App\Models\Lote;
 use App\Models\MovimientoInventario;
 use App\Models\Variante;
 use App\Services\Inventario;
+use App\Support\Fechas;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Libro de inventario: se consulta y se le agregan movimientos. No hay
@@ -128,7 +129,7 @@ class InventarioController extends Controller
     public function lotes(Request $request): JsonResponse
     {
         $sedeId = $request->has('sede_id') ? $request->integer('sede_id') : $request->user()->sede_id;
-        $hoy = today()->toDateString();
+        $hoy = Fechas::hoyIso();
 
         $query = Lote::query()
             ->with(['sede:id,nombre', 'variante.producto:id,nombre', 'variante.unidad:id,abreviatura', 'variante.color:id,nombre,hexadecimal'])
@@ -139,7 +140,7 @@ class InventarioController extends Controller
             ->when($request->input('estado') === 'vencido', fn (Builder $q) => $q->whereDate('vence_at', '<', $hoy))
             ->when($request->input('estado') === 'por_vencer', fn (Builder $q) => $q
                 ->whereDate('vence_at', '>=', $hoy)
-                ->whereDate('vence_at', '<=', today()->addDays(Lote::DIAS_POR_VENCER)->toDateString()));
+                ->whereDate('vence_at', '<=', Fechas::hoy()->addDays(Lote::DIAS_POR_VENCER)->toDateString()));
 
         if ($request->filled('search')) {
             $term = '%'.$request->input('search').'%';

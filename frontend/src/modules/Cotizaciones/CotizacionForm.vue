@@ -254,6 +254,15 @@
           />
         </dd>
 
+        <dt>Op. gravada</dt>
+        <dd class="text-mono">
+          {{ formatearPrecio(desglosarIgv(total).opGravada) }}
+        </dd>
+        <dt>{{ ETIQUETA_IGV }}</dt>
+        <dd class="text-mono">
+          {{ formatearPrecio(desglosarIgv(total).igv) }}
+        </dd>
+
         <dt class="cotizacion-form__total">
           Total
         </dt>
@@ -309,6 +318,7 @@ import BuscadorVariante from '@/modules/Inventario/BuscadorVariante.vue'
 import CotizacionService from '@/services/CotizacionService'
 import { useUserStore } from '@/stores/user-store'
 import { formatearPrecio } from '@/utils/moneda'
+import { desglosarIgv, ETIQUETA_IGV } from '@/utils/igv'
 import BuscadorCliente from '@/modules/Pedidos/BuscadorCliente.vue'
 import { nuevoItem } from '@/modules/Pedidos/FormPedido'
 import formCotizacion from './FormCotizacion'

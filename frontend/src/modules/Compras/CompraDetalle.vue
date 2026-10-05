@@ -103,6 +103,14 @@
     </table>
 
     <dl class="compra-detalle__totales">
+      <dt>Op. gravada</dt>
+      <dd class="text-mono">
+        {{ formatearPrecio(desgloseDe(compra).opGravada) }}
+      </dd>
+      <dt>{{ ETIQUETA_IGV }}</dt>
+      <dd class="text-mono">
+        {{ formatearPrecio(desgloseDe(compra).igv) }}
+      </dd>
       <dt class="compra-detalle__total">
         Total
       </dt>
@@ -142,6 +150,7 @@ import AppChip from '@/components/AppChip.vue'
 import CompraService from '@/services/CompraService'
 import { formatearCantidad } from '@/utils/cantidad'
 import { formatearPrecio } from '@/utils/moneda'
+import { desgloseDe, ETIQUETA_IGV } from '@/utils/igv'
 import { ESTADOS, fechaCorta } from './constantes'
 
 const props = defineProps({

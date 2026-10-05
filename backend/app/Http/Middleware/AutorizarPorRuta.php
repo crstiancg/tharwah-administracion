@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Permisos;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -29,16 +30,8 @@ class AutorizarPorRuta
             abort(403, 'No tenés permiso para realizar esta acción.');
         }
 
-        // Ojo: la clave lleva puntos (roles.index), así que NO se puede leer
-        // con config("permisos.implicitos.$nombre").
-        $aceptados = [$nombre, ...(config('permisos.implicitos', [])[$nombre] ?? [])];
-
-        foreach ($aceptados as $permiso) {
-            // checkPermissionTo y no hasPermissionTo: si el permiso no existe
-            // en la base (ruta nueva sin sincronizar) da false, no una excepción.
-            if ($user->checkPermissionTo($permiso, 'api')) {
-                return $next($request);
-            }
+        if (Permisos::puede($user, $nombre)) {
+            return $next($request);
         }
 
         abort(403, 'No tenés permiso para realizar esta acción.');

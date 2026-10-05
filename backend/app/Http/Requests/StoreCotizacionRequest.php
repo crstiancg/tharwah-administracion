@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Variante;
 use App\Support\Cantidades;
+use App\Support\Fechas;
 use App\Support\Sedes;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -48,7 +49,7 @@ class StoreCotizacionRequest extends FormRequest
     {
         $rules = [
             'cotizacion.cliente_id' => ['required', 'integer', 'exists:clientes,id'],
-            'cotizacion.valida_hasta' => ['required', 'date', 'after_or_equal:today'],
+            'cotizacion.valida_hasta' => ['required', 'date', 'after_or_equal:'.Fechas::hoyIso()],
             'cotizacion.condiciones' => ['nullable', 'string', 'max:500'],
             'cotizacion.observacion' => ['nullable', 'string', 'max:500'],
             'cotizacion.descuento' => ['numeric', 'min:0', 'max:99999999.99', 'decimal:0,2', $this->descuentoNoMayorAlSubtotal()],

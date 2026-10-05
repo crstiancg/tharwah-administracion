@@ -13,38 +13,13 @@
           @click="toggleDrawer"
         />
 
-        <div class="app-search">
-          <q-icon
-            name="search"
-            class="app-search__icon"
-          />
-          <q-input
-            v-model="search"
-            borderless
-            dense
-            placeholder="Buscar pedidos, clientes…"
-            class="app-search__field"
-          />
-        </div>
+        <AppBusquedaGlobal class="gt-xs" />
 
         <q-space />
 
         <AppSedeSelector />
 
-        <q-btn
-          flat
-          dense
-          round
-          icon="notifications_none"
-          aria-label="Notificaciones"
-          class="app-toolbar__bell"
-        >
-          <AppBadge
-            dot
-            floating
-            sr-label="Tenés notificaciones sin leer"
-          />
-        </q-btn>
+        <AppAlertas />
 
         <div class="app-toolbar__sep" />
 
@@ -182,6 +157,8 @@ import AppNavItem from '@/components/AppNavItem.vue'
 import AppBadge from '@/components/AppBadge.vue'
 import AppSedeSelector from '@/components/AppSedeSelector.vue'
 import AppUserMenu from '@/components/AppUserMenu.vue'
+import AppAlertas from '@/components/AppAlertas.vue'
+import AppBusquedaGlobal from '@/components/AppBusquedaGlobal.vue'
 import InventarioService from '@/services/InventarioService'
 import PedidoService from '@/services/PedidoService'
 
@@ -352,7 +329,6 @@ function cerrarAlClicFuera (e) {
 }
 onMounted(() => document.addEventListener('pointerdown', cerrarAlClicFuera))
 onBeforeUnmount(() => document.removeEventListener('pointerdown', cerrarAlClicFuera))
-const search = ref('')
 
 function toggleDrawer () {
   drawerOpen.value = !drawerOpen.value
@@ -376,8 +352,7 @@ function toggleDrawer () {
   gap: 16px;
 }
 
-.app-toolbar__menu,
-.app-toolbar__bell {
+.app-toolbar__menu {
   color: var(--app-ink-2);
 }
 
@@ -385,29 +360,6 @@ function toggleDrawer () {
   width: 1px;
   height: 26px;
   background: var(--app-border-subtle);
-}
-
-.app-search {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 340px;
-  height: 40px;
-  padding: 0 13px;
-  border-radius: 9px;
-  background: var(--app-page);
-  border: 1px solid var(--app-border-subtle);
-}
-
-.app-search__icon {
-  font-size: 17px;
-  color: var(--app-ink-2);
-  flex-shrink: 0;
-}
-
-.app-search__field {
-  flex-grow: 1;
-  font-size: 13.5px;
 }
 
 .app-avatar {

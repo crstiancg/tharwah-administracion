@@ -75,6 +75,14 @@
       <span>Descuento</span>
       <span>-{{ formatearPrecio(pedido.descuento) }}</span>
     </div>
+    <div class="ticket__fila">
+      <span>Op. gravada</span>
+      <span>{{ formatearPrecio(desgloseDe(pedido).opGravada) }}</span>
+    </div>
+    <div class="ticket__fila">
+      <span>{{ ETIQUETA_IGV }}</span>
+      <span>{{ formatearPrecio(desgloseDe(pedido).igv) }}</span>
+    </div>
     <div class="ticket__fila ticket__total">
       <span>TOTAL</span>
       <span>{{ formatearPrecio(pedido.total) }}</span>
@@ -111,6 +119,7 @@
 import { computed } from 'vue'
 import { TIENDA } from '@/config/tienda'
 import { formatearPrecio } from '@/utils/moneda'
+import { desgloseDe, ETIQUETA_IGV } from '@/utils/igv'
 
 /**
  * El ticket de 80 mm, tal cual sale impreso (también sirve de vista previa).

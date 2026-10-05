@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\Ean13;
+use App\Support\Fechas;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -75,6 +76,32 @@ class Variante extends Model
             'precio_sede' => $deLaSede('precio'),
             'stock_minimo_sede' => $deLaSede('stock_minimo'),
         ]);
+    }
+
+    /**
+     * Agrega `stock_vencido`: lo que hay en lotes vencidos de esa sede. Está
+     * en el stock pero no se puede vender (las ventas nunca sacan vencidos).
+     */
+    public function scopeConStockVencidoDeSede(Builder $query, int $sedeId): void
+    {
+        if ($query->getQuery()->columns === null) {
+            $query->select('variantes.*');
+        }
+
+        $query->addSelect(['stock_vencido' => Lote::query()
+            ->selectRaw('COALESCE(SUM(cantidad), 0)')
+            ->whereColumn('lotes.variante_id', 'variantes.id')
+            ->where('lotes.sede_id', $sedeId)
+            ->whereDate('lotes.vence_at', '<', Fechas::hoy())]);
+    }
+
+    /**
+     * Lo que se puede vender: el stock de la sede menos lo vencido (si se
+     * pidió con conStockVencidoDeSede()).
+     */
+    public function stockVendible(): float
+    {
+        return max(0.0, round($this->stockVisible() - (float) ($this->attributes['stock_vencido'] ?? 0), 3));
     }
 
     /**

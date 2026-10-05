@@ -352,6 +352,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
+import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/AppButton.vue'
 import AppChip from '@/components/AppChip.vue'
 import AppDialog from '@/components/AppDialog.vue'
@@ -369,6 +370,8 @@ import PedidoForm from './PedidoForm.vue'
 import { CANALES, ESTADOS } from './constantes'
 
 const $q = useQuasar()
+const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 
 const columns = [
@@ -489,6 +492,14 @@ function ver (pedido) {
   detalleId.value = pedido.id
   detalleDialog.value = true
 }
+
+// ?ver=ID (desde la búsqueda global o la campana) abre ese detalle, también
+// si ya estábamos en esta pantalla.
+watch(() => route.query.ver, (id) => {
+  if (!id) return
+  ver({ id: Number(id) })
+  router.replace({ query: { ...route.query, ver: undefined } })
+}, { immediate: true })
 
 const REGLAS = {
   editar: { estados: ['pendiente'], permiso: 'pedidos.update' },

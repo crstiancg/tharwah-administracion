@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Compra;
 use App\Models\Variante;
 use App\Support\Cantidades;
+use App\Support\Fechas;
 use App\Support\Sedes;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -73,7 +74,7 @@ class StoreCompraRequest extends FormRequest
             $rules["compra.items.{$i}.cantidad"] = [...Cantidades::positiva(), Cantidades::segunUnidad($varianteId)];
             $rules["compra.items.{$i}.costo_unitario"] = ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
             $rules["compra.items.{$i}.lote"] = [Rule::requiredIf(fn () => $this->manejaLotes($varianteId)), 'nullable', 'string', 'max:40'];
-            $rules["compra.items.{$i}.vence_at"] = [Rule::requiredIf(fn () => $this->manejaLotes($varianteId)), 'nullable', 'date', 'after_or_equal:today'];
+            $rules["compra.items.{$i}.vence_at"] = [Rule::requiredIf(fn () => $this->manejaLotes($varianteId)), 'nullable', 'date', 'after_or_equal:'.Fechas::hoyIso()];
         }
 
         return $rules;

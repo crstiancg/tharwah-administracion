@@ -113,6 +113,14 @@
           −{{ formatearPrecio(pedido.descuento) }}
         </dd>
       </template>
+      <dt>Op. gravada</dt>
+      <dd class="text-mono">
+        {{ formatearPrecio(desgloseDe(pedido).opGravada) }}
+      </dd>
+      <dt>{{ ETIQUETA_IGV }}</dt>
+      <dd class="text-mono">
+        {{ formatearPrecio(desgloseDe(pedido).igv) }}
+      </dd>
       <dt class="pedido-detalle__total">
         Total
       </dt>
@@ -211,6 +219,7 @@ import { onMounted, ref } from 'vue'
 import AppChip from '@/components/AppChip.vue'
 import PedidoService from '@/services/PedidoService'
 import { formatearPrecio } from '@/utils/moneda'
+import { desgloseDe, ETIQUETA_IGV } from '@/utils/igv'
 import { ESTADOS } from './constantes'
 
 const props = defineProps({

@@ -274,6 +274,14 @@
       />
 
       <dl class="compra-form__totales">
+        <dt>Op. gravada</dt>
+        <dd class="text-mono">
+          {{ formatearPrecio(desglosarIgv(total).opGravada) }}
+        </dd>
+        <dt>{{ ETIQUETA_IGV }}</dt>
+        <dd class="text-mono">
+          {{ formatearPrecio(desglosarIgv(total).igv) }}
+        </dd>
         <dt class="compra-form__total">
           Total
         </dt>
@@ -328,6 +336,7 @@ import BuscadorVariante from '@/modules/Inventario/BuscadorVariante.vue'
 import ProveedoresForm from '@/modules/Proveedores/ProveedoresForm.vue'
 import { useUserStore } from '@/stores/user-store'
 import { formatearPrecio } from '@/utils/moneda'
+import { desglosarIgv, ETIQUETA_IGV } from '@/utils/igv'
 import BuscadorProveedor from './BuscadorProveedor.vue'
 import { TIPOS_DOCUMENTO } from './constantes'
 

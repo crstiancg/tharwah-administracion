@@ -54,14 +54,15 @@ class CatalogoProductoResource extends JsonResource
                 'termina_at' => $delProducto->termina_at->toIso8601String(),
             ] : null,
             // De la sede del usuario.
-            'stock_total' => (float) $this->stock_total,
+            // Sin lo que está en lotes vencidos (no se vende).
+            'stock_total' => max(0.0, round((float) $this->stock_total - (float) ($this->stock_vencido ?? 0), 3)),
             // Unidades vendidas en los últimos 90 días (confirmadas o entregadas).
             'vendidos' => (float) $this->vendidos,
             'variantes' => $variantes->map(fn ($x) => [
                 'id' => $x['variante']->id,
                 'sku' => $x['variante']->sku,
                 'codigo_barras' => $x['variante']->codigo_barras,
-                'stock' => $x['variante']->stockVisible(),
+                'stock' => $x['variante']->stockVendible(),
                 // Precio de venta HOY (con oferta, si hay) y el de lista (el
                 // de la variante o el base del producto), para tacharlo.
                 'precio' => $x['precio'],

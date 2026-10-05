@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\Fechas;
 use App\Support\Sedes;
 use Illuminate\Validation\Rule;
 
@@ -21,7 +22,7 @@ class RegistrarEntradaRequest extends MovimientoInventarioRequest
             "movimiento.lineas.{$i}.costo_unitario" => ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
             "movimiento.lineas.{$i}.lote" => [Rule::requiredIf(fn () => $this->manejaLotes($i)), 'nullable', 'string', 'max:40'],
             // No se recibe mercadería ya vencida.
-            "movimiento.lineas.{$i}.vence_at" => [Rule::requiredIf(fn () => $this->manejaLotes($i)), 'nullable', 'date', 'after_or_equal:today'],
+            "movimiento.lineas.{$i}.vence_at" => [Rule::requiredIf(fn () => $this->manejaLotes($i)), 'nullable', 'date', 'after_or_equal:'.Fechas::hoyIso()],
         ];
     }
 }
