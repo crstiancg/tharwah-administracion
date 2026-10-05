@@ -18,6 +18,7 @@
         <q-space />
 
         <AppSedeSelector />
+        <SwitchDarkMode />
 
         <AppAlertas />
 
@@ -159,6 +160,7 @@ import AppSedeSelector from '@/components/AppSedeSelector.vue'
 import AppUserMenu from '@/components/AppUserMenu.vue'
 import AppAlertas from '@/components/AppAlertas.vue'
 import AppBusquedaGlobal from '@/components/AppBusquedaGlobal.vue'
+import SwitchDarkMode from '@/components/SwitchDarkMode.vue'
 import InventarioService from '@/services/InventarioService'
 import PedidoService from '@/services/PedidoService'
 
