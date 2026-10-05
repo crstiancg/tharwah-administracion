@@ -13,7 +13,7 @@ export const CON_OPERACION = ['yape', 'plin', 'transferencia']
 
 // Desde esta hora (local) el punto de venta avisa que hay que cerrar la caja:
 // es diaria y la de un día anterior ya no cobra.
-export const HORA_AVISO_CIERRE = 9
+export const HORA_AVISO_CIERRE = 19
 
 // Notificación tras el cierre: el arqueo dice si cuadró.
 export function avisoCierre (resultado, formatearPrecio) {
