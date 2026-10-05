@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Pedido;
 use App\Models\Variante;
 use App\Support\Cantidades;
+use App\Support\Sedes;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -58,6 +59,7 @@ class StorePedidoRequest extends FormRequest
         foreach (array_keys((array) $this->input('pedido.items', [])) as $i) {
             $rules["pedido.items.{$i}.variante_id"] = [
                 'required', 'integer', 'exists:variantes,id', $this->varianteUnica($i), $this->productoActivo(),
+                Sedes::habilitada($this->input("pedido.items.{$i}.variante_id"), $this->user()?->sede_id),
             ];
             $rules["pedido.items.{$i}.cantidad"] = [...Cantidades::positiva(10000), Cantidades::segunUnidad($this->input("pedido.items.{$i}.variante_id"))];
             $rules["pedido.items.{$i}.precio_unitario"] = ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];

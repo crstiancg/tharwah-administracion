@@ -8,6 +8,7 @@ use App\Models\Archivo;
 use App\Models\Categoria;
 use App\Models\MovimientoInventario;
 use App\Models\Producto;
+use App\Models\Stock;
 use App\Models\Variante;
 use App\Services\ArchivosService;
 use App\Services\Inventario;
@@ -23,10 +24,20 @@ class ProductoController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        // Por defecto, los productos de la sede del usuario (los que vende y
+        // su stock ahí); con `sede_id=0`, todo el catálogo y el stock total.
+        $sedeId = $request->has('sede_id') ? $request->integer('sede_id') : $request->user()->sede_id;
+
         $query = Producto::query()
             ->with(['categoria:id,nombre', 'marca:id,nombre', 'portada'])
-            ->withCount('variantes')
-            ->withSum('variantes as stock_total', 'stock');
+            ->withCount('variantes');
+
+        if ($sedeId) {
+            $query->whereHas('variantes', fn (Builder $v) => $v->habilitadaEnSede($sedeId))
+                ->withSum(['stocks as stock_total' => fn ($q) => $q->where('stocks.sede_id', $sedeId)], 'cantidad');
+        } else {
+            $query->withSum('variantes as stock_total', 'stock');
+        }
 
         // Filtrar por "Impermeabilizantes" trae también lo de sus subcategorías.
         if ($request->filled('categoria_id')) {
@@ -46,7 +57,10 @@ class ProductoController extends Controller
             $term = '%'.$request->input('search').'%';
             $query->where(fn (Builder $q) => $q
                 ->where('productos.nombre', 'like', $term)
-                ->orWhereHas('variantes', fn (Builder $v) => $v->where('sku', 'like', $term)));
+                // SKU o código de barras de cualquiera de sus presentaciones.
+                ->orWhereHas('variantes', fn (Builder $v) => $v
+                    ->where('sku', 'like', $term)
+                    ->orWhere('codigo_barras', 'like', $term)));
         }
 
         return $this->generateViewSetList(
@@ -127,6 +141,7 @@ class ProductoController extends Controller
 
         $this->archivos->sincronizar($producto, $datos['archivos'] ?? [], "productos/{$producto->id}", $fuentes);
         $variantes = $this->sincronizarVariantes($producto, $datos['variantes'], $fuentes);
+        $this->sincronizarSedes($variantes, $datos['variantes'], $request);
         $this->registrarStockInicial($variantes, $datos, $request);
     }
 
@@ -153,6 +168,8 @@ class ProductoController extends Controller
                 'cantidad' => $cantidad,
                 // El de la variante o, si no se ajustó, el general del producto.
                 'costo_unitario' => $fila['costo_unitario'] ?? $datos['costo_compra'],
+                // Con lotes: el lote al que entra (el request ya lo exigió).
+                ...(! empty($datos['maneja_lotes']) ? ['lote' => $fila['lote'], 'vence_at' => $fila['vence_at']] : []),
             ];
         }
 
@@ -202,7 +219,7 @@ class ProductoController extends Controller
 
         $guardadas = [];
         foreach (array_values($variantes) as $datos) {
-            $campos = collect($datos)->only(['presentacion', 'unidad_id', 'color_id', 'sku', 'precio', 'stock_minimo'])->all();
+            $campos = collect($datos)->only(['presentacion', 'unidad_id', 'color_id', 'sku', 'precio'])->all();
 
             $variante = empty($datos['id'])
                 ? $producto->variantes()->create($campos)
@@ -213,6 +230,44 @@ class ProductoController extends Controller
         }
 
         return $guardadas;
+    }
+
+    /**
+     * Qué sedes venden cada presentación, a qué precio y con qué mínimo (la
+     * fila de `stocks`; la cantidad no se toca: la mueve el inventario).
+     *
+     * Una presentación nueva sin configuración se habilita en la sede de
+     * quien la crea; las sedes que no vienen en el payload no cambian.
+     *
+     * @param  array<int, Variante>  $variantes  en el orden del payload
+     * @param  array<int, array<string, mixed>>  $datos
+     */
+    private function sincronizarSedes(array $variantes, array $datos, StoreProductoRequest $request): void
+    {
+        foreach (array_values($datos) as $i => $fila) {
+            $variante = $variantes[$i];
+            $sedes = $fila['sedes'] ?? null;
+
+            if (empty($sedes)) {
+                if (empty($fila['id']) && $request->user()->sede_id) {
+                    $sedes = [['sede_id' => $request->user()->sede_id, 'activo' => true, 'precio' => null, 'stock_minimo' => 0]];
+                } else {
+                    continue;
+                }
+            }
+
+            foreach ($sedes as $config) {
+                // Sin firstOrNew: llena las claves por asignación masiva y Stock
+                // no tiene fillable a propósito.
+                $stock = Stock::query()->where('variante_id', $variante->id)->where('sede_id', $config['sede_id'])->first()
+                    ?? (new Stock)->forceFill(['variante_id' => $variante->id, 'sede_id' => $config['sede_id'], 'cantidad' => 0]);
+                $stock->forceFill([
+                    'activo' => (bool) $config['activo'],
+                    'precio' => $config['precio'] ?? null,
+                    'stock_minimo' => $config['stock_minimo'] ?? 0,
+                ])->save();
+            }
+        }
     }
 
     /**
@@ -245,6 +300,7 @@ class ProductoController extends Controller
             'variantes' => fn ($q) => $q->orderBy('variantes.id')->withExists('movimientos'),
             'variantes.unidad:id,nombre,abreviatura,fraccionable',
             'variantes.color:id,nombre,hexadecimal',
+            'variantes.stocks' => fn ($q) => $q->orderBy('sede_id'),
             'variantes.stocks.sede:id,nombre',
             'variantes.archivos',
         ])))->resolve(request());

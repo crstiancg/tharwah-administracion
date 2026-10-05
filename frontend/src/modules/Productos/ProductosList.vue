@@ -27,6 +27,12 @@
         :options="categoriaOptions"
       />
       <AppFilterPill
+        v-if="sedes.length > 1"
+        v-model="sedeFilter"
+        label="Sede"
+        :options="sedeOptions"
+      />
+      <AppFilterPill
         v-model="marcaFilter"
         label="Marca"
         :options="marcaOptions"
@@ -50,7 +56,11 @@
     >
       <template #body-cell-nombre="props">
         <q-td :props="props">
-          <div class="producto-celda">
+          <!-- Toda la celda lleva a la ficha (stock, lotes, movimientos). -->
+          <router-link
+            :to="`/productos/${props.row.id}`"
+            class="producto-celda"
+          >
             <!-- Miniatura WebP (unos KB), no el original. -->
             <img
               v-if="props.row.portada"
@@ -79,7 +89,7 @@
                 {{ props.row.variantes_count }} {{ props.row.variantes_count === 1 ? 'variante' : 'variantes' }}
               </div>
             </div>
-          </div>
+          </router-link>
         </q-td>
       </template>
 
@@ -218,6 +228,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
+import { useRouter } from 'vue-router'
 import AppButton from '@/components/AppButton.vue'
 import AppChip from '@/components/AppChip.vue'
 import AppDialog from '@/components/AppDialog.vue'
@@ -227,6 +238,7 @@ import AppPageHeader from '@/components/AppPageHeader.vue'
 import AppTable from '@/components/AppTable.vue'
 import CategoriaService from '@/services/CategoriaService'
 import MarcaService from '@/services/MarcaService'
+import SedeService from '@/services/SedeService'
 import ProductoService from '@/services/ProductoService'
 import { useUserStore } from '@/stores/user-store'
 import { formatearPrecio } from '@/utils/moneda'
@@ -234,6 +246,7 @@ import { opcionesPadre } from '@/modules/Categorias/arbol'
 import ProductosForm from './ProductosForm.vue'
 
 const $q = useQuasar()
+const router = useRouter()
 const userStore = useUserStore()
 
 const columns = [
@@ -241,7 +254,7 @@ const columns = [
   { name: 'marca', label: 'Marca', field: (row) => row.marca?.nombre, align: 'left' },
   { name: 'categoria', label: 'Categoría', field: (row) => row.categoria?.nombre, align: 'left' },
   { name: 'precio', label: 'Precio base', field: 'precio', align: 'right', sortable: true },
-  { name: 'stock', label: 'Stock total', field: 'stock_total', align: 'right' },
+  { name: 'stock', label: 'Stock', field: 'stock_total', align: 'right' },
   { name: 'activo', label: 'Estado', field: 'activo', align: 'left' },
   { name: 'acciones', label: '', field: 'id', align: 'right' }
 ]
@@ -251,6 +264,14 @@ const search = ref('')
 const busqueda = ref('')
 const categoriaFilter = ref(null)
 const marcaFilter = ref(null)
+// Arranca en la sede del usuario (lo que vende y su stock ahí); 0 = todo el
+// catálogo con el stock de la empresa.
+const sedeFilter = ref(userStore.sedeId ?? 0)
+const sedes = ref([])
+const sedeOptions = computed(() => [
+  { label: 'Todas las sedes', value: 0 },
+  ...sedes.value.map((s) => ({ label: s.nombre, value: s.id }))
+])
 const activoFilter = ref(null)
 
 // El buscador espera a que se deje de tipear para no pegarle a la API por tecla.
@@ -279,13 +300,14 @@ const activoOptions = [
   { label: 'Inactivos', value: 0 }
 ]
 
-const hayFiltros = computed(() => Boolean(search.value || categoriaFilter.value !== null || marcaFilter.value !== null || activoFilter.value !== null))
+const hayFiltros = computed(() => Boolean(search.value || categoriaFilter.value !== null || marcaFilter.value !== null || activoFilter.value !== null || sedeFilter.value !== (userStore.sedeId ?? 0)))
 
 function limpiarFiltros () {
   search.value = ''
   categoriaFilter.value = null
   marcaFilter.value = null
   activoFilter.value = null
+  sedeFilter.value = userStore.sedeId ?? 0
 }
 
 // AppTable vuelve a la página 1 y pide datos cada vez que cambia `filter`:
@@ -294,6 +316,7 @@ const filtroTabla = computed(() => JSON.stringify({
   search: busqueda.value,
   categoria_id: categoriaFilter.value,
   marca_id: marcaFilter.value,
+  sede_id: sedeFilter.value,
   activo: activoFilter.value
 }))
 
@@ -310,6 +333,7 @@ async function onRequest ({ pagination: requested }) {
   try {
     const params = { rowsPerPage, page, search: busqueda.value, order_by: descending ? `-${sortBy}` : sortBy }
     if (categoriaFilter.value !== null) params.categoria_id = categoriaFilter.value
+    params.sede_id = sedeFilter.value
     if (marcaFilter.value !== null) params.marca_id = marcaFilter.value
     if (activoFilter.value !== null) params.activo = activoFilter.value
 
@@ -324,12 +348,14 @@ async function onRequest ({ pagination: requested }) {
 
 onMounted(async () => {
   tableRef.value.requestServerInteraction()
-  const [c, m] = await Promise.all([
+  const [c, m, s] = await Promise.all([
     CategoriaService.getData({ params: { rowsPerPage: 0 } }),
-    MarcaService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } })
+    MarcaService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } }),
+    SedeService.activas()
   ])
   categorias.value = c.data
   marcas.value = m.data
+  sedes.value = s
 })
 
 // ── Crear / editar en diálogo ──
@@ -350,10 +376,18 @@ function editar (row) {
   formDialog.value = true
 }
 
-function save () {
+// Recién creado se va a su ficha; si no le cargaron stock inicial, con la
+// entrada abierta para cargarlo (y el lote, si maneja lotes).
+function save (producto) {
   formDialog.value = false
-  tableRef.value.requestServerInteraction()
   $q.notify({ type: 'positive', message: 'Producto guardado.', position: 'top-right', timeout: 1500 })
+  if (!editId.value && producto?.id) {
+    // Si ya entró con stock inicial (y su lote) no hace falta la entrada.
+    const conStock = producto.variantes?.some((v) => Number(v.stock) > 0)
+    router.push({ path: `/productos/${producto.id}`, query: conStock ? {} : { entrada: 1 } })
+    return
+  }
+  tableRef.value.requestServerInteraction()
 }
 
 // ── Eliminar con confirmación ──
@@ -391,6 +425,13 @@ async function confirmarEliminar () {
   display: flex;
   align-items: center;
   gap: 10px;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover .producto-nombre {
+    color: $primary;
+    text-decoration: underline;
+  }
 }
 
 .producto-portada {

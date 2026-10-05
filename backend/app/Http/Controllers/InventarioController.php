@@ -78,8 +78,9 @@ class InventarioController extends Controller
     {
         $sedeId = $request->integer('sede_id') ?: $request->user()->sede_id;
 
+        // Con sede, sólo las presentaciones que esa sede vende.
         $query = Variante::query()
-            ->when($sedeId, fn (Builder $q) => $q->conStockDeSede($sedeId))
+            ->when($sedeId, fn (Builder $q) => $q->habilitadaEnSede($sedeId)->conStockDeSede($sedeId))
             ->with(['producto:id,nombre,precio,categoria_id,maneja_lotes', 'producto.portada', 'portada', 'unidad:id,nombre,abreviatura,fraccionable', 'color:id,nombre,hexadecimal'])
             ->whereHas('producto', fn (Builder $p) => $p->where('activo', true));
 
@@ -94,8 +95,11 @@ class InventarioController extends Controller
 
         // "Por reponer": en la sede, por debajo del mínimo.
         if ($request->boolean('bajo_minimo') && $sedeId) {
-            $query->where('variantes.stock_minimo', '>', 0)
-                ->whereRaw('(SELECT COALESCE(SUM(cantidad), 0) FROM stocks WHERE stocks.variante_id = variantes.id AND stocks.sede_id = ?) < variantes.stock_minimo', [$sedeId]);
+            $query->whereHas('stocks', fn (Builder $s) => $s
+                ->where('sede_id', $sedeId)
+                ->where('activo', true)
+                ->where('stock_minimo', '>', 0)
+                ->whereColumn('cantidad', '<', 'stock_minimo'));
         }
 
         if ($request->filled('search')) {
@@ -118,7 +122,7 @@ class InventarioController extends Controller
 
     /**
      * Lotes con stock, el que vence primero arriba. Filtros: `sede_id` (por
-     * defecto la del usuario; 0 = todas), `variante_id`, `estado`
+     * defecto la del usuario; 0 = todas), `variante_id`, `producto_id`, `estado`
      * (vencido | por_vencer) y búsqueda por producto, SKU o código de lote.
      */
     public function lotes(Request $request): JsonResponse
@@ -131,6 +135,7 @@ class InventarioController extends Controller
             ->where('cantidad', '>', 0)
             ->when($sedeId, fn (Builder $q) => $q->where('sede_id', $sedeId))
             ->when($request->filled('variante_id'), fn (Builder $q) => $q->where('variante_id', $request->integer('variante_id')))
+            ->when($request->filled('producto_id'), fn (Builder $q) => $q->whereHas('variante', fn (Builder $v) => $v->where('producto_id', $request->integer('producto_id'))))
             ->when($request->input('estado') === 'vencido', fn (Builder $q) => $q->whereDate('vence_at', '<', $hoy))
             ->when($request->input('estado') === 'por_vencer', fn (Builder $q) => $q
                 ->whereDate('vence_at', '>=', $hoy)

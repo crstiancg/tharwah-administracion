@@ -109,9 +109,9 @@
       {{ errorCaja }}
       <router-link
         v-if="userStore.hasPermission('cajas.abrir')"
-        to="/caja"
+        to="/pos"
       >
-        Ir a Caja
+        Abrir en el punto de venta
       </router-link>
     </p>
 

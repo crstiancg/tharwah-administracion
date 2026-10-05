@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Variante;
 use App\Support\Cantidades;
+use App\Support\Sedes;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -56,7 +57,10 @@ class StoreCotizacionRequest extends FormRequest
 
         foreach (array_keys((array) $this->input('cotizacion.items', [])) as $i) {
             $varianteId = $this->input("cotizacion.items.{$i}.variante_id");
-            $rules["cotizacion.items.{$i}.variante_id"] = ['required', 'integer', 'exists:variantes,id', $this->varianteUnica($i), $this->productoActivo()];
+            $rules["cotizacion.items.{$i}.variante_id"] = [
+                'required', 'integer', 'exists:variantes,id', $this->varianteUnica($i), $this->productoActivo(),
+                Sedes::habilitada($varianteId, $this->user()?->sede_id),
+            ];
             $rules["cotizacion.items.{$i}.cantidad"] = [...Cantidades::positiva(), Cantidades::segunUnidad($varianteId)];
             $rules["cotizacion.items.{$i}.precio_unitario"] = ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
         }

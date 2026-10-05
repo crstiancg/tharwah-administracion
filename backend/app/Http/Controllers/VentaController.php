@@ -6,15 +6,18 @@ use App\Http\Requests\RegistrarVentaRequest;
 use App\Http\Resources\CatalogoProductoResource;
 use App\Http\Resources\PedidoResource;
 use App\Models\Categoria;
+use App\Models\Lote;
 use App\Models\Pedido;
 use App\Models\PedidoItem;
 use App\Models\Producto;
 use App\Services\Cajas;
 use App\Services\Pedidos;
+use App\Services\Precios;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -27,6 +30,77 @@ use Illuminate\Validation\ValidationException;
 class VentaController extends Controller
 {
     public function __construct(private Pedidos $pedidos, private Cajas $cajas) {}
+
+    /**
+     * Ficha de sólo lectura para el vendedor: lo que necesita para responderle
+     * al cliente. Las presentaciones que vende su sede con el precio de hoy,
+     * su stock ahí, cuánto hay en las otras sedes y, con lotes, cuándo vence.
+     */
+    public function ficha(Request $request, Producto $producto, Precios $precios): JsonResponse
+    {
+        $sedeId = $request->user()->sedeOperativa();
+        $disco = Storage::disk('public');
+
+        $producto->load([
+            'categoria:id,nombre',
+            'marca:id,nombre',
+            'archivos',
+            'variantes' => fn ($q) => $q->habilitadaEnSede($sedeId)->conStockDeSede($sedeId)->orderBy('variantes.id'),
+            'variantes.unidad:id,nombre,abreviatura',
+            'variantes.color:id,nombre,hexadecimal',
+            'variantes.stocks' => fn ($q) => $q->where('sede_id', '!=', $sedeId)->where('cantidad', '>', 0)->where('activo', true),
+            'variantes.stocks.sede:id,nombre',
+        ]);
+
+        $lotes = $producto->maneja_lotes
+            ? Lote::query()
+                ->where('sede_id', $sedeId)
+                ->whereIn('variante_id', $producto->variantes->pluck('id'))
+                ->where('cantidad', '>', 0)
+                ->orderByRaw('vence_at IS NULL')->orderBy('vence_at')
+                ->get()
+                ->groupBy('variante_id')
+            : collect();
+
+        return response()->json([
+            'id' => $producto->id,
+            'nombre' => $producto->nombre,
+            'descripcion' => $producto->descripcion,
+            'marca' => $producto->marca?->only(['id', 'nombre']),
+            'categoria' => $producto->categoria?->only(['id', 'nombre']),
+            'maneja_lotes' => (bool) $producto->maneja_lotes,
+            'fotos' => $producto->archivos->map(fn ($a) => [
+                'url' => $disco->url($a->ruta),
+                'miniatura_url' => $disco->url($a->miniatura ?? $a->ruta),
+            ])->values(),
+            'variantes' => $producto->variantes->map(function ($v) use ($producto, $precios, $lotes, $disco) {
+                $vigente = $precios->vigente($v->precioBase((float) $producto->precio), $producto->id, $producto->categoria_id, $v->id);
+
+                return [
+                    'id' => $v->id,
+                    'sku' => $v->sku,
+                    'codigo_barras' => $v->codigo_barras,
+                    'presentacion' => $v->presentacion,
+                    'unidad' => $v->unidad?->only(['nombre', 'abreviatura']),
+                    'color' => $v->color?->only(['nombre', 'hexadecimal']),
+                    'precio' => $vigente['precio'],
+                    'precio_lista' => $vigente['precio_lista'],
+                    'oferta' => $vigente['oferta']?->etiqueta(),
+                    'stock' => $v->stockVisible(),
+                    'otras_sedes' => $v->stocks->map(fn ($s) => [
+                        'sede' => $s->sede?->nombre,
+                        'cantidad' => (float) $s->cantidad,
+                    ])->values(),
+                    'lotes' => ($lotes[$v->id] ?? collect())->map(fn (Lote $l) => [
+                        'codigo' => $l->codigo,
+                        'vence_at' => $l->vence_at?->toDateString(),
+                        'estado' => $l->estado(),
+                        'cantidad' => $l->cantidad,
+                    ])->values(),
+                ];
+            })->values(),
+        ]);
+    }
 
     /**
      * Catálogo del punto de venta, con el stock de la sede del usuario:
@@ -52,11 +126,13 @@ class VentaController extends Controller
             ->addSelect(['vendidos' => $vendidos])
             ->withSum(['stocks as stock_total' => fn ($q) => $q->where('stocks.sede_id', $sedeId)], 'cantidad')
             ->where('activo', true)
+            // Sólo lo que esta sede vende.
+            ->whereHas('variantes', fn (Builder $v) => $v->habilitadaEnSede($sedeId))
             ->with([
                 'categoria:id,nombre',
                 'marca:id,nombre',
                 'portada',
-                'variantes' => fn ($q) => $q->conStockDeSede($sedeId)->orderBy('variantes.id'),
+                'variantes' => fn ($q) => $q->habilitadaEnSede($sedeId)->conStockDeSede($sedeId)->orderBy('variantes.id'),
                 'variantes.unidad:id,nombre,abreviatura,fraccionable',
                 'variantes.color:id,nombre,hexadecimal',
                 'variantes.portada',
@@ -76,7 +152,7 @@ class VentaController extends Controller
         $conStock = $request->boolean('con_stock');
         $variante = fn (Builder $v) => $v
             ->when($request->filled('color_id'), fn ($q) => $q->where('color_id', $request->integer('color_id')))
-            ->when($conStock, fn ($q) => $q->whereHas('stocks', fn ($s) => $s->where('sede_id', $sedeId)->where('cantidad', '>', 0)));
+            ->when($conStock, fn ($q) => $q->whereHas('stocks', fn ($s) => $s->where('sede_id', $sedeId)->where('activo', true)->where('cantidad', '>', 0)));
         if ($request->filled('color_id') || $conStock) {
             $query->whereHas('variantes', $variante);
         }

@@ -350,6 +350,12 @@ const props = defineProps({
     type: String,
     required: true,
     validator: (valor) => valor in TIPOS
+  },
+  // Presentaciones con las que arranca (desde la ficha de un producto), en la
+  // forma de /inventario/variantes. Las que se dejen sin cantidad no viajan.
+  iniciales: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -408,6 +414,8 @@ function formatearFechaCorta (iso) {
   return `${dia}/${mes}/${anio}`
 }
 
+props.iniciales.forEach(agregar)
+
 function quitar (i) {
   form.movimiento.lineas.splice(i, 1)
 }
@@ -447,7 +455,17 @@ const totalCompra = computed(() => form.movimiento.lineas.reduce((suma, l) => {
   return suma + (Number.isFinite(costo) ? cantidad * costo : 0)
 }, 0))
 
+// Las líneas precargadas que quedaron vacías no son un error: esa
+// presentación simplemente no entró (o no salió) esta vez.
+function descartarVacias () {
+  if (!props.iniciales.length || props.tipo === 'ajuste') return
+  const precargadas = new Set(props.iniciales.map((v) => v.id))
+  form.movimiento.lineas = form.movimiento.lineas.filter((l) =>
+    !(precargadas.has(l.variante_id) && (l.cantidad === '' || l.cantidad === null)))
+}
+
 async function submit () {
+  descartarVacias()
   try {
     const respuesta = await form.submit()
     form.reset()

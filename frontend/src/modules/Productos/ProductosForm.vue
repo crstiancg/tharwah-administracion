@@ -198,7 +198,6 @@
             <span>Color</span>
             <span>SKU</span>
             <span>Precio</span>
-            <span>Stock mín.</span>
             <span>Fotos</span>
             <span class="text-right">{{ hayNuevas ? 'Stock / inicial' : 'Stock' }}</span>
             <span />
@@ -330,25 +329,6 @@
                 @change="form.validate(`${PATH}.variantes.${i}.precio`)"
               />
 
-              <q-input
-                v-model="variante.stock_minimo"
-                :aria-label="`Stock mínimo de la presentación ${i + 1}`"
-                :error="Boolean(errorDe(i, 'stock_minimo'))"
-                :error-message="errorDe(i, 'stock_minimo')"
-                placeholder="0"
-                type="number"
-                min="0"
-                step="1"
-                dense
-                outlined
-                hide-bottom-space
-                no-error-icon
-                class="producto-form__control"
-                @change="form.validate(`${PATH}.variantes.${i}.stock_minimo`)"
-              >
-                <q-tooltip>Por debajo de esta cantidad, la presentación aparece para reponer</q-tooltip>
-              </q-input>
-
               <!-- Miniatura + cantidad; abre el panel de fotos debajo de la fila. -->
               <button
                 type="button"
@@ -386,21 +366,14 @@
                 class="producto-form__stock text-mono"
               >
                 {{ formatearCantidad(variante.stock) }}
-                <q-tooltip v-if="variante.stocks.length">
+                <q-tooltip v-if="variante.stocks.some((s) => s.cantidad)">
                   <div
-                    v-for="s in variante.stocks"
+                    v-for="s in variante.stocks.filter((s) => s.cantidad)"
                     :key="s.sede_id"
                   >
                     {{ s.sede }}: {{ formatearCantidad(s.cantidad) }}
                   </div>
                 </q-tooltip>
-              </span>
-              <span
-                v-else-if="form.producto.maneja_lotes"
-                class="producto-form__stock producto-form__hint"
-              >
-                Desde Inventario
-                <q-tooltip>Con lotes, el stock entra desde Inventario › Entrada, con su lote y vencimiento</q-tooltip>
               </span>
               <div
                 v-else
@@ -487,8 +460,110 @@
         </div>
       </div>
 
+      <!-- ── Venta por sede ── -->
       <div
-        v-if="hayNuevas && !form.producto.maneja_lotes"
+        v-if="sedes.length && form.producto.variantes.length"
+        class="producto-form__sedes"
+      >
+        <div class="producto-form__stockTitulo">
+          <q-icon
+            name="storefront"
+            size="16px"
+          />
+          Venta por sede
+          <span class="producto-form__hint">
+            Qué sedes venden cada presentación, a qué precio (vacío = el general) y desde qué stock avisar para reponer.
+          </span>
+        </div>
+
+        <div
+          v-for="sede in sedes"
+          :key="sede.id"
+          class="producto-form__sede"
+        >
+          <div class="producto-form__sedeHead">
+            <q-checkbox
+              :model-value="estadoSede(sede.id)"
+              toggle-indeterminate
+              dense
+              :label="sede.nombre"
+              class="producto-form__sedeNombre"
+              @update:model-value="venderTodoEn(sede.id, $event)"
+            />
+            <span
+              v-if="sede.id === userStore.sedeId"
+              class="producto-form__hint"
+            >(tu sede)</span>
+          </div>
+
+          <div class="producto-form__sedeFilas">
+            <div class="producto-form__sedeFila producto-form__sedeFila--head">
+              <span>Presentación</span>
+              <span>Precio</span>
+              <span>Stock mín.</span>
+              <span class="text-right">Stock</span>
+            </div>
+            <div
+              v-for="(variante, i) in form.producto.variantes"
+              :key="variante.uid"
+              class="producto-form__sedeFila"
+            >
+              <q-checkbox
+                v-model="configDe(variante, sede.id).activo"
+                dense
+                :label="etiquetaDe(variante)"
+                :aria-label="`Vender ${etiquetaDe(variante)} en ${sede.nombre}`"
+              />
+              <q-input
+                v-model="configDe(variante, sede.id).precio"
+                :aria-label="`Precio de ${etiquetaDe(variante)} en ${sede.nombre}`"
+                :placeholder="formatearPrecio(variante.precio || form.producto.precio) || 'General'"
+                :disable="!configDe(variante, sede.id).activo"
+                :error="Boolean(errorSede(i, sede.id, 'precio'))"
+                :error-message="errorSede(i, sede.id, 'precio')"
+                type="number"
+                min="0"
+                step="0.01"
+                dense
+                outlined
+                hide-bottom-space
+                no-error-icon
+                class="producto-form__control"
+              />
+              <q-input
+                v-model="configDe(variante, sede.id).stock_minimo"
+                :aria-label="`Stock mínimo de ${etiquetaDe(variante)} en ${sede.nombre}`"
+                :disable="!configDe(variante, sede.id).activo"
+                :error="Boolean(errorSede(i, sede.id, 'stock_minimo'))"
+                :error-message="errorSede(i, sede.id, 'stock_minimo')"
+                placeholder="0"
+                type="number"
+                min="0"
+                dense
+                outlined
+                hide-bottom-space
+                no-error-icon
+                class="producto-form__control"
+              />
+              <span class="text-right text-mono producto-form__sedeStock">
+                {{ formatearCantidad(stockEn(variante, sede.id)) ?? 0 }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <p
+          v-for="mensaje in erroresSedes"
+          :key="mensaje"
+          class="producto-form__error"
+          role="alert"
+        >
+          {{ mensaje }}
+        </p>
+      </div>
+
+      <div
+        v-if="hayNuevas"
         class="producto-form__stockInicial"
       >
         <div class="producto-form__stockTitulo">
@@ -551,6 +626,55 @@
             </template>
           </span>
         </div>
+
+        <!-- Con lotes: cada presentación con stock inicial dice a qué lote
+             entra y cuándo vence (lo mismo que pide una entrada). -->
+        <div
+          v-if="form.producto.maneja_lotes && conStockInicial.length"
+          class="producto-form__lotes"
+        >
+          <div class="producto-form__lotesCabecera">
+            <span>Presentación</span>
+            <span>Lote</span>
+            <span>Vence</span>
+          </div>
+          <div
+            v-for="{ variante, i } in conStockInicial"
+            :key="i"
+            class="producto-form__loteFila"
+          >
+            <span class="producto-form__loteNombre">
+              {{ etiquetaDe(variante) }}
+              <span class="producto-form__hint">· {{ variante.stock_inicial }} unid.</span>
+            </span>
+            <q-input
+              v-model="variante.lote"
+              :aria-label="`Lote de ${etiquetaDe(variante)}`"
+              placeholder="L-2301"
+              maxlength="40"
+              dense
+              outlined
+              hide-bottom-space
+              no-error-icon
+              :error="Boolean(errorDe(i, 'lote'))"
+              :error-message="errorDe(i, 'lote')"
+              class="producto-form__control"
+            />
+            <q-input
+              v-model="variante.vence_at"
+              :aria-label="`Vencimiento de ${etiquetaDe(variante)}`"
+              type="date"
+              :min="hoy"
+              dense
+              outlined
+              hide-bottom-space
+              no-error-icon
+              :error="Boolean(errorDe(i, 'vence_at'))"
+              :error-message="errorDe(i, 'vence_at')"
+              class="producto-form__control"
+            />
+          </div>
+        </div>
       </div>
 
       <p
@@ -578,6 +702,7 @@ import CategoriaService from '@/services/CategoriaService'
 import ColorService from '@/services/ColorService'
 import ProductoService from '@/services/ProductoService'
 import MarcaService from '@/services/MarcaService'
+import SedeService from '@/services/SedeService'
 import UnidadService from '@/services/UnidadService'
 import { useUserStore } from '@/stores/user-store'
 import { formatearCantidad } from '@/utils/cantidad'
@@ -683,6 +808,57 @@ function cambioColor (variante, i) {
   form.validate(`${PATH}.variantes.${i}.color_id`)
 }
 
+// ── Venta por sede ──
+const sedes = ref([])
+
+// La fila de la sede en la presentación (completarSedes() asegura que exista).
+function configDe (variante, sedeId) {
+  return variante.sedes.find((s) => s.sede_id === sedeId) ?? { activo: false, precio: '', stock_minimo: '' }
+}
+
+function stockEn (variante, sedeId) {
+  return variante.stocks.find((s) => s.sede_id === sedeId)?.cantidad ?? 0
+}
+
+// Cada presentación con una fila por sede activa. Una NUEVA se vende de
+// entrada en la sede de quien la carga (o en la única que haya); una que ya
+// existía y no tenía fila en esa sede, no.
+function completarSedes () {
+  form.producto.variantes.forEach((variante) => {
+    sedes.value.forEach((sede) => {
+      if (variante.sedes.some((s) => s.sede_id === sede.id)) return
+      variante.sedes.push({
+        sede_id: sede.id,
+        activo: !variante.id && (sede.id === userStore.sedeId || sedes.value.length === 1),
+        precio: '',
+        stock_minimo: '0'
+      })
+    })
+  })
+}
+watch(() => [sedes.value.length, form.producto.variantes.length], completarSedes)
+
+// Casilla de la sede: tildada si vende todas, a medias si algunas.
+function estadoSede (sedeId) {
+  const activas = form.producto.variantes.filter((v) => configDe(v, sedeId).activo).length
+  if (activas === 0) return false
+  return activas === form.producto.variantes.length ? true : null
+}
+
+function venderTodoEn (sedeId, valor) {
+  form.producto.variantes.forEach((v) => { configDe(v, sedeId).activo = valor !== false })
+}
+
+function errorSede (i, sedeId, campo) {
+  const j = form.producto.variantes[i]?.sedes.findIndex((s) => s.sede_id === sedeId)
+  return j >= 0 ? form.errors[`${PATH}.variantes.${i}.sedes.${j}.${campo}`] : undefined
+}
+
+// Los de la lista entera (stock en una sede que se apaga, sede repetida).
+const erroresSedes = computed(() => [...new Set(Object.entries(form.errors)
+  .filter(([clave]) => /\.variantes\.\d+\.sedes$/.test(clave))
+  .map(([, mensaje]) => mensaje))])
+
 function etiquetaDe (variante) {
   const color = colorPorId.value.get(variante.color_id)?.nombre
   return [variante.presentacion || 'la presentación', color].filter(Boolean).join(' · ')
@@ -710,6 +886,17 @@ const tieneStock = computed(() => form.producto.variantes.some((v) => Number(v.s
 
 // ── Stock inicial (sólo variantes nuevas) ──
 const hayNuevas = computed(() => form.producto.variantes.some((v) => !v.id))
+
+// Nuevas con stock inicial (con su índice, para los errores por fila).
+const conStockInicial = computed(() => form.producto.variantes
+  .map((variante, i) => ({ variante, i }))
+  .filter(({ variante }) => !variante.id && Number(variante.stock_inicial) > 0))
+
+// Mínimo del selector de fecha, en la fecha local (no la UTC de toISOString).
+const hoy = (() => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+})()
 const cantidadParaTodas = ref('')
 
 function ponerATodas () {
@@ -750,11 +937,12 @@ function aFoto ({ id, url, miniatura_url: miniaturaUrl, nombre, ancho, alto }) {
 onMounted(async () => {
   const todos = { params: { rowsPerPage: 0 } }
 
-  const [catalogoCategorias, catalogoMarcas, catalogoUnidades, catalogoColores, producto] = await Promise.all([
+  const [catalogoCategorias, catalogoMarcas, catalogoUnidades, catalogoColores, catalogoSedes, producto] = await Promise.all([
     CategoriaService.getData(todos),
     MarcaService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } }),
     UnidadService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } }),
     ColorService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } }),
+    SedeService.activas(),
     props.id ? ProductoService.get(props.id) : null
   ])
 
@@ -762,6 +950,7 @@ onMounted(async () => {
   marcas.value = catalogoMarcas.data
   unidades.value = catalogoUnidades.data
   colores.value = catalogoColores.data
+  sedes.value = catalogoSedes
   cargando.value = false
 
   if (!producto) {
@@ -792,9 +981,16 @@ onMounted(async () => {
         color_id: v.color_id,
         sku: v.sku,
         precio: v.precio ?? '',
-        stock_minimo: String(v.stock_minimo ?? 0),
         stock: v.stock,
         stocks: v.stocks ?? [],
+        // Lo que viaja: cómo la vende cada sede (las que faltan las completa
+        // completarSedes(), sin vender).
+        sedes: (v.stocks ?? []).map((s) => ({
+          sede_id: s.sede_id,
+          activo: s.activo,
+          precio: s.precio ?? '',
+          stock_minimo: formatearCantidad(s.stock_minimo) ?? '0'
+        })),
         con_movimientos: v.con_movimientos ?? false,
         archivos: v.archivos.map(aFoto),
         // Si el SKU guardado no es el que se sugeriría, lo escribieron a mano.
@@ -814,9 +1010,9 @@ onBeforeUnmount(() => {
 
 async function submit () {
   try {
-    await form.submit()
+    const respuesta = await form.submit()
     form.reset()
-    emit('save')
+    emit('save', respuesta?.data)
   } catch {
     // 422: los errores quedan en form.errors y se ven en cada campo.
   }
@@ -961,12 +1157,12 @@ defineExpose({ form, submit })
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 960px;
+  min-width: 880px;
 }
 
 .producto-form__fila {
   display: grid;
-  grid-template-columns: 1.6fr 1.2fr 1.2fr 1.6fr 1fr 0.8fr 48px 92px 36px;
+  grid-template-columns: 1.6fr 1.2fr 1.2fr 1.6fr 1fr 48px 92px 36px;
   align-items: start;
   gap: 8px;
 
@@ -992,6 +1188,59 @@ defineExpose({ form, submit })
   font-size: 11.5px;
 }
 
+.producto-form__sedes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--app-border-subtle);
+  border-radius: 12px;
+}
+
+.producto-form__sede {
+  padding-top: 10px;
+  border-top: 1px solid var(--app-border-subtle);
+}
+
+.producto-form__sedeHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.producto-form__sedeNombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--app-ink);
+}
+
+.producto-form__sedeFilas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.producto-form__sedeFila {
+  display: grid;
+  grid-template-columns: minmax(200px, 2fr) 120px 110px 70px;
+  align-items: center;
+  gap: 8px;
+  min-width: 520px;
+  padding-left: 22px;
+
+  &--head {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--app-ink-2);
+  }
+}
+
+.producto-form__sedeStock {
+  color: var(--app-ink-2);
+}
+
 .producto-form__stockInicial {
   display: flex;
   flex-direction: column;
@@ -1010,6 +1259,46 @@ defineExpose({ form, submit })
   font-size: 13px;
   font-weight: 600;
   color: var(--app-ink);
+}
+
+.producto-form__lotes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.producto-form__lotesCabecera,
+.producto-form__loteFila {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 170px;
+  align-items: center;
+  gap: 10px;
+}
+
+.producto-form__lotesCabecera {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-ink-2);
+}
+
+.producto-form__loteNombre {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-ink);
+}
+
+@media (max-width: 599px) {
+  .producto-form__lotesCabecera {
+    display: none;
+  }
+
+  .producto-form__loteFila {
+    grid-template-columns: 1fr 1fr;
+
+    .producto-form__loteNombre {
+      grid-column: 1 / -1;
+    }
+  }
 }
 
 .producto-form__rellenar {

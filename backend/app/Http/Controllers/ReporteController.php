@@ -149,7 +149,6 @@ class ReporteController extends Controller
             ->selectRaw('sedes.id, sedes.nombre, COUNT(*) as presentaciones')
             ->selectRaw('SUM(stocks.cantidad * COALESCE(variantes.costo_promedio, 0)) as valor')
             ->selectRaw('SUM(CASE WHEN variantes.costo_promedio IS NULL THEN 1 ELSE 0 END) as sin_costo')
-            ->selectRaw('SUM(CASE WHEN variantes.stock_minimo > 0 AND stocks.cantidad < variantes.stock_minimo THEN 1 ELSE 0 END) as bajo_minimo')
             ->orderByDesc('valor')
             ->get()
             ->map(fn ($f) => [
@@ -158,8 +157,20 @@ class ReporteController extends Controller
                 'presentaciones' => (int) $f->presentaciones,
                 'valor' => round((float) $f->valor, 2),
                 'sin_costo' => (int) $f->sin_costo,
-                'bajo_minimo' => (int) $f->bajo_minimo,
             ]);
+
+        // Aparte: lo agotado (cantidad 0) también está bajo el mínimo y la
+        // consulta de arriba sólo mira lo que tiene stock.
+        $bajoMinimo = DB::table('stocks')
+            ->where('activo', true)
+            ->where('stock_minimo', '>', 0)
+            ->whereColumn('cantidad', '<', 'stock_minimo')
+            ->when($sedeId, fn (Builder $q) => $q->where('sede_id', $sedeId))
+            ->selectRaw('sede_id, COUNT(*) as total')
+            ->groupBy('sede_id')
+            ->pluck('total', 'sede_id');
+
+        $porSede = $porSede->map(fn ($s) => [...$s, 'bajo_minimo' => (int) ($bajoMinimo[$s['id']] ?? 0)]);
 
         $top = $base()
             ->join('productos', 'productos.id', '=', 'variantes.producto_id')
@@ -194,7 +205,7 @@ class ReporteController extends Controller
                 'valor' => round($porSede->sum('valor'), 2),
                 'presentaciones' => $porSede->sum('presentaciones'),
                 'sin_costo' => $porSede->sum('sin_costo'),
-                'bajo_minimo' => $porSede->sum('bajo_minimo'),
+                'bajo_minimo' => (int) $bajoMinimo->sum(),
                 'lotes_vencidos' => (int) $vencidos->lotes,
                 'valor_vencido' => round((float) $vencidos->valor, 2),
             ],

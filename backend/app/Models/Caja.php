@@ -60,4 +60,16 @@ class Caja extends Model
     {
         return $this->estado === self::ABIERTA;
     }
+
+    /**
+     * Abierta en un día anterior (en la zona del negocio): la caja es diaria,
+     * así que hay que cerrarla antes de seguir registrando dinero.
+     */
+    public function esDeOtroDia(): bool
+    {
+        $zona = config('app.zona_negocio');
+
+        return $this->estaAbierta()
+            && $this->abierta_at->copy()->setTimezone($zona)->toDateString() < now($zona)->toDateString();
+    }
 }

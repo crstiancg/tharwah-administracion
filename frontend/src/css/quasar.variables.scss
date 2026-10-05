@@ -29,7 +29,8 @@ $typography-font-family : 'Manrope Variable', 'Manrope', -apple-system, BlinkMac
 // suelto—, sólo donde los números tienen que alinearse verticalmente.
 $font-mono : 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 
-$primary   : #F82525;
+// $primary   : #F82525;
+$primary   : #f3c01e;
 $secondary : #6B7280;
 $accent    : #1F2937;
 
@@ -58,7 +59,7 @@ $surface        : #FFFFFF;
 
 // Variantes de $primary (hover y fondo suave) — no son $secondary/$accent,
 // son el mismo rojo de marca en otro estado/uso.
-$primary-hover : #C91C1C;
+$primary-hover : #dca50f;
 $primary-soft  : #FFE4E4;
 
 // Tinte suave de $negative. El destructivo nunca va relleno de marca:

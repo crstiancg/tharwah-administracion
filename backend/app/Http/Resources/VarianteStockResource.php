@@ -30,7 +30,7 @@ class VarianteStockResource extends JsonResource
     private function precioVigente(): array
     {
         $vigente = app(Precios::class)->vigente(
-            (float) ($this->precio ?? $this->producto->precio),
+            $this->precioBase((float) $this->producto->precio),
             $this->producto->id,
             $this->producto->categoria_id,
             $this->id,
@@ -60,7 +60,8 @@ class VarianteStockResource extends JsonResource
             // El de la sede consultada (o el total, si no se pidió por sede).
             'stock' => $this->stockVisible(),
             'stock_total' => (float) $this->stock,
-            'stock_minimo' => $this->stock_minimo,
+            // El de la sede consultada.
+            'stock_minimo' => $this->stockMinimoVisible(),
             'costo_promedio' => $this->costo_promedio,
             // Precio de venta HOY (con la mejor oferta vigente) y el de lista.
             // Sólo cuando se cargó el precio del producto.

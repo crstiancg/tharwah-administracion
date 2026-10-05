@@ -92,7 +92,7 @@ class Pedidos
             $pedido = Pedido::query()->whereKey($pedido->id)->lockForUpdate()->firstOrFail();
             $this->exigirEstado($pedido, [Pedido::PENDIENTE], 'confirmar');
 
-            $items = $pedido->items()->orderBy('id')->get();
+            $items = $pedido->items()->with('variante.producto:id,nombre')->orderBy('id')->get();
 
             try {
                 $this->inventario->salida(
@@ -106,9 +106,19 @@ class Pedidos
                 );
             } catch (ValidationException $e) {
                 // Las líneas del inventario son los ítems en el mismo orden:
-                // el error se muestra en el ítem del pedido.
+                // el error se muestra en el ítem del pedido, con el nombre del
+                // producto (desde el listado no se ve qué ítem es el "1").
                 throw ValidationException::withMessages(collect($e->errors())
-                    ->mapWithKeys(fn ($mensajes, $clave) => [str_replace('movimiento.lineas.', 'pedido.items.', $clave) => $mensajes])
+                    ->mapWithKeys(function ($mensajes, $clave) use ($items) {
+                        preg_match('/^movimiento\.lineas\.(\d+)\./', $clave, $m);
+                        $variante = isset($m[1]) ? $items->get((int) $m[1])?->variante : null;
+                        $nombre = $variante ? trim($variante->producto->nombre.' '.$variante->presentacion) : null;
+
+                        return [str_replace('movimiento.lineas.', 'pedido.items.', $clave) => array_map(
+                            fn ($mensaje) => $nombre ? "{$nombre}: {$mensaje}" : $mensaje,
+                            $mensajes,
+                        )];
+                    })
                     ->all());
             }
 

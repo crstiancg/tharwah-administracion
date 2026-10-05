@@ -39,6 +39,8 @@ class CajaResource extends JsonResource
             'sede' => $this->whenLoaded('sede', fn () => $this->sede?->only(['id', 'nombre'])),
             'monto_apertura' => $this->monto_apertura,
             'abierta_at' => $this->abierta_at?->toIso8601String(),
+            // Abierta en un día anterior: no cobra hasta cerrarla.
+            'vencida' => $this->resource->esDeOtroDia(),
             'abierta_por' => $this->whenLoaded('abiertaPor', fn () => $this->abiertaPor?->only(['id', 'name'])),
             'cerrada_at' => $this->cerrada_at?->toIso8601String(),
             'cerrada_por' => $this->whenLoaded('cerradaPor', fn () => $this->cerradaPor?->only(['id', 'name'])),

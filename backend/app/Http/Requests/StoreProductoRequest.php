@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Archivo;
 use App\Models\Producto;
+use App\Models\Stock;
 use App\Models\Variante;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -65,9 +66,25 @@ class StoreProductoRequest extends FormRequest
                 if (($variante['color_id'] ?? null) === '') {
                     $variante['color_id'] = null;
                 }
-                // Vacío (el middleware ya lo convirtió en null) = sin mínimo.
-                if (in_array($variante['stock_minimo'] ?? null, [null, ''], true)) {
-                    $variante['stock_minimo'] = 0;
+                // Por sede: vacío = sin precio propio / sin mínimo. En
+                // multipart el activo llega como texto.
+                if (is_array($variante['sedes'] ?? null)) {
+                    $variante['sedes'] = array_map(function ($sede) {
+                        if (! is_array($sede)) {
+                            return $sede;
+                        }
+                        if (in_array($sede['activo'] ?? null, ['true', 'false', '1', '0'], true)) {
+                            $sede['activo'] = in_array($sede['activo'], ['true', '1'], true);
+                        }
+                        if (($sede['precio'] ?? null) === '') {
+                            $sede['precio'] = null;
+                        }
+                        if (in_array($sede['stock_minimo'] ?? null, [null, ''], true)) {
+                            $sede['stock_minimo'] = 0;
+                        }
+
+                        return $sede;
+                    }, $variante['sedes']);
                 }
                 // Precio vacío = usa el precio base del producto.
                 if (($variante['precio'] ?? null) === '') {
@@ -116,7 +133,13 @@ class StoreProductoRequest extends FormRequest
             $rules["producto.variantes.{$i}.presentacion"] = ['required', 'string', 'max:60', $this->combinacionUnica($i)];
             $rules["producto.variantes.{$i}.unidad_id"] = ['required', 'integer', 'exists:unidades,id'];
             $rules["producto.variantes.{$i}.color_id"] = ['nullable', 'integer', 'exists:colores,id'];
-            $rules["producto.variantes.{$i}.stock_minimo"] = ['required', 'numeric', 'min:0', 'max:1000000', 'decimal:0,3'];
+            // Una fila por sede: si la vende, su precio (null = el general) y
+            // su mínimo. Sin filas = no cambia nada de lo que ya tenía.
+            $rules["producto.variantes.{$i}.sedes"] = ['nullable', 'array', $this->sedesSinRepetir(), $this->noDeshabilitaConStock($i)];
+            $rules["producto.variantes.{$i}.sedes.*.sede_id"] = ['required', 'integer', 'exists:sedes,id'];
+            $rules["producto.variantes.{$i}.sedes.*.activo"] = ['required', 'boolean'];
+            $rules["producto.variantes.{$i}.sedes.*.precio"] = ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
+            $rules["producto.variantes.{$i}.sedes.*.stock_minimo"] = ['required', 'numeric', 'min:0', 'max:1000000', 'decimal:0,3'];
             $rules["producto.variantes.{$i}.sku"] = [
                 'required', 'string', 'max:40', 'regex:/^[A-Z0-9-]+$/',
                 $this->skuUnicoEnElProducto($i),
@@ -128,6 +151,10 @@ class StoreProductoRequest extends FormRequest
             $rules["producto.variantes.{$i}.precio"] = ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
             $rules["producto.variantes.{$i}.stock_inicial"] = ['nullable', 'numeric', 'min:0', 'max:100000', 'decimal:0,3', $this->stockInicialValido($i)];
             $rules["producto.variantes.{$i}.costo_unitario"] = ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
+            // Con lotes, el stock inicial entra a un lote (igual que una entrada).
+            $conLote = Rule::requiredIf(fn () => $this->stockInicialConLote($i));
+            $rules["producto.variantes.{$i}.lote"] = [$conLote, 'nullable', 'string', 'max:40'];
+            $rules["producto.variantes.{$i}.vence_at"] = [$conLote, 'nullable', 'date', 'after_or_equal:today'];
             $rules = [...$rules, ...$this->reglasArchivos("producto.variantes.{$i}.archivos")];
         }
 
@@ -212,9 +239,18 @@ class StoreProductoRequest extends FormRequest
             if ((float) $value <= 0) {
                 return;
             }
-            // Va a la sede del usuario: sin sede no hay dónde ponerlo.
-            if (! $this->user()?->sede_id) {
+            // Va a la sede del usuario: sin sede no hay dónde ponerlo, y la
+            // sede tiene que venderla.
+            $sedeId = $this->user()?->sede_id;
+            if (! $sedeId) {
                 $fail('Tu usuario no tiene sede asignada: el stock inicial no tiene dónde entrar.');
+
+                return;
+            }
+            $enMiSede = collect((array) $this->input("producto.variantes.{$i}.sedes", []))
+                ->first(fn ($s) => (int) ($s['sede_id'] ?? 0) === $sedeId);
+            if ($enMiSede !== null && ! filter_var($enMiSede['activo'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                $fail('El stock inicial entra en tu sede: habilitá la presentación ahí.');
 
                 return;
             }
@@ -224,15 +260,58 @@ class StoreProductoRequest extends FormRequest
                 return;
             }
 
-            if (filter_var($this->input('producto.maneja_lotes'), FILTER_VALIDATE_BOOLEAN)) {
-                $fail('Con lotes, el stock inicial se carga desde Inventario › Entrada, con su lote y vencimiento.');
-
-                return;
-            }
-
             $costo = $this->input("producto.variantes.{$i}.costo_unitario") ?? $this->input('producto.costo_compra');
             if ($costo === null || $costo === '') {
                 $fail('Falta el costo de compra de estas unidades.');
+            }
+        };
+    }
+
+    /**
+     * Presentación nueva de un producto con lotes que entra con stock inicial.
+     */
+    private function stockInicialConLote(int|string $i): bool
+    {
+        return filter_var($this->input('producto.maneja_lotes'), FILTER_VALIDATE_BOOLEAN)
+            && ! $this->input("producto.variantes.{$i}.id")
+            && (float) $this->input("producto.variantes.{$i}.stock_inicial", 0) > 0;
+    }
+
+    private function sedesSinRepetir(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) {
+            $ids = collect((array) $value)->pluck('sede_id')->map(fn ($id) => (int) $id);
+            if ($ids->count() !== $ids->unique()->count()) {
+                $fail('Una sede aparece dos veces.');
+            }
+        };
+    }
+
+    /**
+     * Dejar de vender en una sede donde todavía hay stock lo escondería de
+     * su POS con la mercadería adentro: primero se traslada o se saca.
+     */
+    private function noDeshabilitaConStock(int|string $i): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($i) {
+            $id = $this->input("producto.variantes.{$i}.id");
+            if (! $id) {
+                return;
+            }
+
+            $apagadas = collect((array) $value)
+                ->filter(fn ($s) => ! filter_var($s['activo'] ?? true, FILTER_VALIDATE_BOOLEAN))
+                ->pluck('sede_id');
+
+            $conStock = Stock::query()
+                ->with('sede:id,nombre')
+                ->where('variante_id', $id)
+                ->whereIn('sede_id', $apagadas)
+                ->where('cantidad', '>', 0)
+                ->get();
+
+            if ($conStock->isNotEmpty()) {
+                $fail('Todavía hay stock en '.$conStock->map(fn ($s) => $s->sede->nombre)->implode(', ').': trasladalo o sacalo antes de dejar de venderla ahí.');
             }
         };
     }
@@ -369,12 +448,15 @@ class StoreProductoRequest extends FormRequest
             'producto.maneja_lotes' => 'maneja lotes',
             'producto.variantes.*.presentacion' => 'presentación',
             'producto.variantes.*.unidad_id' => 'unidad',
-            'producto.variantes.*.stock_minimo' => 'stock mínimo',
+            'producto.variantes.*.sedes.*.precio' => 'precio de la sede',
+            'producto.variantes.*.sedes.*.stock_minimo' => 'stock mínimo',
             'producto.variantes.*.color_id' => 'color',
             'producto.variantes.*.sku' => 'SKU',
             'producto.variantes.*.precio' => 'precio',
             'producto.variantes.*.stock_inicial' => 'stock inicial',
             'producto.variantes.*.costo_unitario' => 'costo',
+            'producto.variantes.*.lote' => 'lote',
+            'producto.variantes.*.vence_at' => 'vencimiento',
             'producto.costo_compra' => 'costo de compra',
             'producto.referencia_compra' => 'factura o guía',
             'producto.archivos.*.archivo' => 'foto',

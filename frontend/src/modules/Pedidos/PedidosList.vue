@@ -244,6 +244,30 @@
       :title="modoPago === 'devolver' ? 'Devolver pago' : 'Cobrar pedido'"
       persistent
     >
+      <!-- Cobrar sin stock se permite (adelanto de un encargo), pero avisado. -->
+      <template v-if="modoPago === 'cobrar'">
+        <div
+          v-if="faltantes.length"
+          class="pedido-faltantes"
+          role="alert"
+        >
+          <q-icon
+            name="warning"
+            size="18px"
+          />
+          <div>
+            <p>Falta stock en tu sede: el cobro queda como adelanto y el pedido no se va a poder confirmar hasta que entre la mercadería.</p>
+            <ul>
+              <li
+                v-for="f in faltantes"
+                :key="f.id"
+              >
+                <strong>{{ f.nombre }}</strong>: pide {{ f.pide }}, hay {{ f.hay }}
+              </li>
+            </ul>
+          </div>
+        </div>
+      </template>
       <PagoForm
         v-if="pagoDialog && detalle"
         ref="pagoRef"
@@ -283,6 +307,29 @@
           ¿Cancelar <strong>{{ detalle?.codigo }}</strong>? Todavía no había descontado stock.
         </template>
       </p>
+      <template v-if="accionPendiente === 'confirmar'">
+        <div
+          v-if="faltantes.length"
+          class="pedido-faltantes"
+          role="alert"
+        >
+          <q-icon
+            name="warning"
+            size="18px"
+          />
+          <div>
+            <p>No se puede confirmar todavía: falta stock en tu sede. Registrá la entrada de mercadería o editá las cantidades.</p>
+            <ul>
+              <li
+                v-for="f in faltantes"
+                :key="f.id"
+              >
+                <strong>{{ f.nombre }}</strong>: pide {{ f.pide }}, hay {{ f.hay }}
+              </li>
+            </ul>
+          </div>
+        </div>
+      </template>
 
       <template #actions>
         <AppButton
@@ -294,6 +341,7 @@
           :variant="accionPendiente === 'cancelar' ? 'destructive' : 'primary'"
           :label="accionPendiente === 'confirmar' ? 'Confirmar' : 'Cancelar pedido'"
           :loading="accionando === accionPendiente"
+          :disable="accionPendiente === 'confirmar' && faltantes.length > 0"
           @click="ejecutar(accionPendiente)"
         />
       </template>
@@ -486,6 +534,20 @@ async function pagoGuardado () {
   })
 }
 
+// Ítems de un pendiente que hoy no alcanzan con el stock de la sede del pedido
+// (el detalle trae ese stock). Confirmado ya descontó: no aplica.
+const faltantes = computed(() => {
+  if (detalle.value?.estado !== 'pendiente') return []
+  return (detalle.value.items ?? [])
+    .filter((item) => Number(item.cantidad) > Number(item.variante?.stock ?? 0))
+    .map((item) => ({
+      id: item.id,
+      nombre: [item.variante?.producto?.nombre, item.variante?.presentacion].filter(Boolean).join(' '),
+      pide: Number(item.cantidad),
+      hay: Number(item.variante?.stock ?? 0)
+    }))
+})
+
 const accionDialog = ref(false)
 const accionPendiente = ref(null)
 const accionando = ref(null)
@@ -514,8 +576,16 @@ async function ejecutar (accion) {
     // 422: falta stock en algún ítem; 409: el estado cambió mientras tanto.
     const { status, data } = error.response ?? {}
     if (status === 422 || status === 409) {
-      const primero = Object.values(data?.errors ?? {})[0]?.[0]
-      $q.notify({ type: 'negative', message: primero ?? data?.message, position: 'top-right', timeout: 4000 })
+      // Todos los errores, no sólo el primero: con varios ítems sin stock hay
+      // que saber cuáles son.
+      const mensajes = Object.values(data?.errors ?? {}).map((m) => m[0])
+      $q.notify({
+        type: 'negative',
+        message: mensajes.length ? mensajes.join(' · ') : data?.message,
+        multiLine: true,
+        position: 'top-right',
+        timeout: 6000
+      })
       if (status === 409) detalleRef.value.actualizar(await PedidoService.get(detalle.value.id))
     }
   } finally {
@@ -525,6 +595,28 @@ async function ejecutar (accion) {
 </script>
 
 <style lang="scss" scoped>
+.pedido-faltantes {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba($warning, 0.45);
+  border-radius: 10px;
+  background: rgba($warning, 0.12);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-ink);
+
+  p {
+    margin: 0 0 4px;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+}
+
 .pedido-codigo {
   padding: 0;
   border: 0;

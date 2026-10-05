@@ -20,6 +20,8 @@ use Illuminate\Validation\ValidationException;
  *   muestra lo cobrado del día por método. El arqueo compara sólo efectivo.
  * - Pagos y movimientos son inmutables: un error se corrige con otro
  *   registro (una devolución), nunca editando.
+ * - La caja es diaria: una abierta en un día anterior no recibe dinero
+ *   hasta cerrarla (Caja::esDeOtroDia).
  * - La caja abierta se bloquea (FOR UPDATE) al registrar: un pago no puede
  *   colarse en una caja que se está cerrando en ese mismo instante.
  */
@@ -236,6 +238,12 @@ class Cajas
 
         if (! $caja) {
             throw $this->conflicto('caja', 'No hay una caja abierta en tu sede: abrí la caja para registrar dinero.');
+        }
+
+        // La caja es diaria: la de ayer se cierra (arqueo) antes de cobrar hoy.
+        if ($caja->esDeOtroDia()) {
+            $dia = $caja->abierta_at->copy()->setTimezone(config('app.zona_negocio'))->format('d/m');
+            throw $this->conflicto('caja', "La caja del {$dia} sigue abierta: cerrala desde el punto de venta y abrí la de hoy.");
         }
 
         return $caja;

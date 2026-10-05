@@ -4,91 +4,110 @@
       v-if="productos.length"
       :class="['catalogo__lista', `catalogo__lista--${vista}`]"
     >
-      <button
+      <div
         v-for="p in productos"
         :key="p.id"
-        type="button"
-        :class="['tarjeta', `tarjeta--${vista}`, { 'tarjeta--agotada': !p.stock_total }]"
-        :disabled="!p.stock_total"
-        :aria-label="`${p.nombre}, ${rangoPrecio(p)}, stock ${p.stock_total}`"
-        @click="emit('elegir', p)"
+        :class="['tarjeta-envoltura', `tarjeta-envoltura--${vista}`]"
       >
-        <div
-          class="tarjeta__img"
-          :style="fondo(p)"
+        <button
+          type="button"
+          :class="['tarjeta', `tarjeta--${vista}`, { 'tarjeta--agotada': !p.stock_total }]"
+          :disabled="!p.stock_total"
+          :aria-label="`${p.nombre}, ${rangoPrecio(p)}, stock ${p.stock_total}`"
+          @click="emit('elegir', p)"
         >
-          <q-icon
-            v-if="!p.miniatura_url"
-            name="checkroom"
-            size="28px"
-            class="tarjeta__ph"
-          />
-          <span :class="['tarjeta__stock', `tarjeta__stock--${nivelStock(p.stock_total)}`]">
-            <span class="tarjeta__punto" />
-            {{ p.stock_total ? `STOCK · ${p.stock_total}` : 'AGOTADO' }}
-          </span>
-          <span
-            v-if="p.vendidos > 0 && vista === 'grid'"
-            class="tarjeta__vendidos"
+          <div
+            class="tarjeta__img"
+            :style="fondo(p)"
           >
             <q-icon
-              name="trending_up"
-              size="11px"
-            />{{ p.vendidos }} vendidos
-          </span>
-          <span
-            v-if="pos.cantidadDeProducto(p.id)"
-            class="tarjeta__enCarrito"
-          >×{{ pos.cantidadDeProducto(p.id) }}</span>
-          <span
-            v-if="p.oferta"
-            class="tarjeta__oferta"
-            :title="`${p.oferta.nombre} · hasta ${formatearFechaHora(p.oferta.termina_at)}`"
-          >{{ p.oferta.etiqueta }}</span>
-        </div>
-
-        <div class="tarjeta__cuerpo">
-          <div class="tarjeta__nombre">
-            {{ p.nombre }}
-          </div>
-          <div class="tarjeta__categoria">
-            <template v-if="p.marca">
-              {{ p.marca.nombre }} ·
-            </template>{{ p.categoria?.nombre }}
-          </div>
-
-          <div class="tarjeta__variantes">
-            <span
-              v-for="t in presentacionesDisponibles(p)"
-              :key="t"
-              class="tarjeta__presentacion"
-            >{{ t }}</span>
-            <span
-              v-for="c in coloresDisponibles(p)"
-              :key="c.nombre"
-              class="tarjeta__color"
-              :style="{ background: c.hexadecimal }"
-              :title="c.nombre"
+              v-if="!p.miniatura_url"
+              name="checkroom"
+              size="28px"
+              class="tarjeta__ph"
             />
+            <span :class="['tarjeta__stock', `tarjeta__stock--${nivelStock(p.stock_total)}`]">
+              <span class="tarjeta__punto" />
+              {{ p.stock_total ? `STOCK · ${p.stock_total}` : 'AGOTADO' }}
+            </span>
+            <span
+              v-if="p.vendidos > 0 && vista === 'grid'"
+              class="tarjeta__vendidos"
+            >
+              <q-icon
+                name="trending_up"
+                size="11px"
+              />{{ p.vendidos }} vendidos
+            </span>
+            <span
+              v-if="pos.cantidadDeProducto(p.id)"
+              class="tarjeta__enCarrito"
+            >×{{ pos.cantidadDeProducto(p.id) }}</span>
+            <span
+              v-if="p.oferta"
+              class="tarjeta__oferta"
+              :title="`${p.oferta.nombre} · hasta ${formatearFechaHora(p.oferta.termina_at)}`"
+            >{{ p.oferta.etiqueta }}</span>
           </div>
 
-          <div class="tarjeta__pie">
-            <span class="tarjeta__precios">
-              <s
-                v-if="enOferta(p)"
-                class="tarjeta__lista text-mono"
-              >{{ rangoPrecio(p, 'precio_lista') }}</s>
-              <span :class="['tarjeta__precio', 'text-mono', { 'tarjeta__precio--oferta': enOferta(p) }]">{{ rangoPrecio(p) }}</span>
-            </span>
-            <span class="tarjeta__agregar">
-              <q-icon
-                name="add"
-                size="16px"
+          <div class="tarjeta__cuerpo">
+            <div class="tarjeta__nombre">
+              {{ p.nombre }}
+            </div>
+            <div class="tarjeta__categoria">
+              <template v-if="p.marca">
+                {{ p.marca.nombre }} ·
+              </template>{{ p.categoria?.nombre }}
+            </div>
+
+            <div class="tarjeta__variantes">
+              <span
+                v-for="t in presentacionesDisponibles(p)"
+                :key="t"
+                class="tarjeta__presentacion"
+              >{{ t }}</span>
+              <span
+                v-for="c in coloresDisponibles(p)"
+                :key="c.nombre"
+                class="tarjeta__color"
+                :style="{ background: c.hexadecimal }"
+                :title="c.nombre"
               />
-            </span>
+            </div>
+
+            <div class="tarjeta__pie">
+              <span class="tarjeta__precios">
+                <s
+                  v-if="enOferta(p)"
+                  class="tarjeta__lista text-mono"
+                >{{ rangoPrecio(p, 'precio_lista') }}</s>
+                <span :class="['tarjeta__precio', 'text-mono', { 'tarjeta__precio--oferta': enOferta(p) }]">{{ rangoPrecio(p) }}</span>
+              </span>
+              <span class="tarjeta__agregar">
+                <q-icon
+                  name="add"
+                  size="16px"
+                />
+              </span>
+            </div>
           </div>
-        </div>
-      </button>
+        </button>
+        <!-- Hermano y no hijo de la tarjeta (un botón no va dentro de otro).
+             Funciona también con la tarjeta agotada: ahí es cuando más sirve
+             ver si hay en otra sede. -->
+        <button
+          type="button"
+          class="tarjeta__info"
+          :aria-label="`Ver ficha de ${p.nombre}`"
+          @click="fichaRef.abrir(p)"
+        >
+          <q-icon
+            name="info_outline"
+            size="16px"
+          />
+          <q-tooltip>Ver ficha</q-tooltip>
+        </button>
+      </div>
     </div>
 
     <div
@@ -122,6 +141,11 @@
         @click="cargar(pagina + 1)"
       />
     </div>
+
+    <FichaProductoPos
+      ref="fichaRef"
+      @elegir="(p) => emit('elegir', p)"
+    />
   </div>
 </template>
 
@@ -130,6 +154,7 @@ import { computed, ref, watch } from 'vue'
 import AppButton from '@/components/AppButton.vue'
 import VentaService from '@/services/VentaService'
 import { usePosStore } from '@/stores/pos-store'
+import FichaProductoPos from './FichaProductoPos.vue'
 import { formatearFechaHora } from '@/utils/fechas'
 import { formatearPrecio } from '@/utils/moneda'
 
@@ -156,6 +181,7 @@ const props = defineProps({
 const emit = defineEmits(['elegir'])
 
 const pos = usePosStore()
+const fichaRef = ref()
 
 const POR_PAGINA = 24
 const productos = ref([])
@@ -256,6 +282,51 @@ defineExpose({ refrescar: () => cargar(1) })
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.tarjeta-envoltura {
+  position: relative;
+  display: flex;
+
+  > .tarjeta {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.tarjeta__info {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  color: var(--q-dark, #fff);
+  cursor: pointer;
+
+  &:hover {
+    color: $primary;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $primary;
+    outline-offset: 2px;
+  }
+
+  // En lista la imagen es chica: va a la izquierda del "+".
+  .tarjeta-envoltura--list & {
+    top: auto;
+    right: 48px;
+    bottom: 12px;
+  }
 }
 
 .tarjeta {
@@ -359,7 +430,7 @@ defineExpose({ refrescar: () => cargar(1) })
 
 .tarjeta__enCarrito {
   position: absolute;
-  top: 8px;
+  top: 44px;
   right: 8px;
   min-width: 28px;
   padding: 3px 8px;

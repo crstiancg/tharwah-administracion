@@ -51,14 +51,19 @@ export function nuevaVariante (datos = {}) {
     color_id: null,
     sku: '',
     precio: '',
-    stock_minimo: '',
     stock: 0,
     // [{ sede_id, sede, cantidad }]: el desglose, sólo para mostrar.
     stocks: [],
+    // [{ sede_id, activo, precio, stock_minimo }]: cómo la vende cada sede
+    // (es lo que viaja; la cantidad de cada sede está en `stocks`).
+    sedes: [],
     // Sólo variantes nuevas: unidades que entran al crearla y su costo si
     // difiere del general de la compra.
     stock_inicial: '',
     costo_unitario: '',
+    // Con lotes: a qué lote entra ese stock inicial.
+    lote: '',
+    vence_at: '',
     con_movimientos: false,
     archivos: [],
     skuManual: false,

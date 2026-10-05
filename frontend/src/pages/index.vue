@@ -48,7 +48,7 @@
 
         <div class="app-toolbar__sep" />
 
-        <div class="app-avatar">{{ userStore.initials }}</div>
+        <AppUserMenu />
       </q-toolbar>
     </q-header>
 
@@ -70,204 +70,82 @@
           <span class="app-brand__name">THARWAH</span>
         </div>
 
-        <div class="app-drawer__section">General</div>
+        <!-- Menú por secciones colapsables. Las entradas salen de MENU (abajo):
+             cada una aparece sólo con su permiso, y una sección sin
+             entradas visibles no se muestra. -->
+        <div class="app-drawer__menu">
+          <nav class="app-drawer__nav">
+            <AppNavItem
+              exact
+              to="/"
+              icon="dashboard"
+              label="Dashboard"
+            />
+            <AppNavItem
+              v-if="userStore.hasPermission('reportes.ventas')"
+              to="/reportes"
+              icon="insights"
+              label="Reportes"
+            />
+          </nav>
 
-        <nav class="app-drawer__nav">
-          <AppNavItem
-            exact
-            to="/"
-            icon="dashboard"
-            label="Dashboard"
-          />
-
-          <AppNavItem
-            v-if="userStore.hasPermission('ventas.store')"
-            to="/pos"
-            icon="point_of_sale"
-            label="Punto de venta"
-          />
-
-          <AppNavItem
-            v-if="userStore.hasPermission('pedidos.index')"
-            to="/pedidos"
-            icon="receipt_long"
-            label="Pedidos"
+          <section
+            v-for="seccion in secciones"
+            :key="seccion.id"
+            class="app-drawer__grupo"
           >
-            <!-- Pedidos pendientes reales (antes, un 14 fijo de la maqueta). -->
-            <template
-              v-if="pendientes"
-              #badge
+            <button
+              type="button"
+              class="app-drawer__section"
+              :aria-expanded="String(abierta(seccion.id))"
+              :aria-controls="`menu-${seccion.id}`"
+              @click="alternar(seccion.id)"
             >
-              <AppBadge variant="brand">
-                {{ pendientes }}
-              </AppBadge>
-            </template>
-          </AppNavItem>
+              <q-icon
+                :name="seccion.icon"
+                size="16px"
+                class="app-drawer__sectionIcon"
+              />
+              <span class="app-drawer__sectionLabel">{{ seccion.label }}</span>
+              <!-- Cerrada, avisa igual si adentro hay algo pendiente. -->
+              <AppBadge
+                v-if="!abierta(seccion.id) && totalBadges(seccion)"
+                dot
+                :sr-label="`Hay pendientes en ${seccion.label}`"
+              />
+              <q-icon
+                name="expand_more"
+                size="18px"
+                :class="['app-drawer__chevron', { 'app-drawer__chevron--abierta': abierta(seccion.id) }]"
+              />
+            </button>
 
-          <AppNavItem
-            v-if="userStore.hasPermission('cotizaciones.index')"
-            to="/cotizaciones"
-            icon="request_quote"
-            label="Cotizaciones"
-          />
-
-          <AppNavItem
-            v-if="userStore.hasPermission('clientes.index')"
-            to="/clientes"
-            icon="groups"
-            label="Clientes"
-          />
-
-          <AppNavItem
-            v-if="userStore.hasPermission('cajas.actual')"
-            to="/caja"
-            icon="account_balance_wallet"
-            label="Caja"
-          />
-
-          <AppNavItem
-            v-if="userStore.hasPermission('productos.index')"
-            to="/productos"
-            icon="inventory_2"
-            label="Productos"
-          />
-
-          <AppNavItem
-            v-if="userStore.hasPermission('ofertas.index')"
-            to="/ofertas"
-            icon="local_offer"
-            label="Ofertas"
-          />
-
-          <AppNavItem
-            v-if="userStore.hasPermission('inventario.index')"
-            to="/inventario"
-            icon="warehouse"
-            label="Inventario"
-          />
-
-          <AppNavItem
-            v-if="userStore.hasPermission('inventario.index')"
-            to="/reponer"
-            icon="production_quantity_limits"
-            label="Por reponer"
-          />
-
-          <AppNavItem
-            v-if="userStore.hasPermission('inventario.lotes')"
-            to="/vencimientos"
-            icon="event_busy"
-            label="Vencimientos"
-          >
-            <!-- Lotes vencidos o por vencer en la sede, con stock. -->
-            <template
-              v-if="alertasLotes"
-              #badge
-            >
-              <AppBadge variant="brand">
-                {{ alertasLotes }}
-              </AppBadge>
-            </template>
-          </AppNavItem>
-
-          <AppNavItem
-            v-if="userStore.hasPermission('reportes.ventas')"
-            to="/reportes"
-            icon="insights"
-            label="Reportes"
-          />
-
-          <AppNavItem
-            v-if="userStore.hasPermission('etiquetas.imprimir')"
-            to="/etiquetas"
-            icon="mdi-barcode"
-            label="Etiquetas"
-          />
-        </nav>
-
-        <template v-if="['compras.index', 'proveedores.index'].some((p) => userStore.hasPermission(p))">
-          <div class="app-drawer__section">Compras</div>
-
-          <nav class="app-drawer__nav">
-            <AppNavItem
-              v-if="userStore.hasPermission('compras.index')"
-              to="/compras"
-              icon="shopping_bag"
-              label="Compras"
-            />
-            <AppNavItem
-              v-if="userStore.hasPermission('proveedores.index')"
-              to="/proveedores"
-              icon="local_shipping"
-              label="Proveedores"
-            />
-          </nav>
-        </template>
-
-        <template v-if="['categorias.index', 'marcas.index', 'unidades.index', 'colores.index'].some((p) => userStore.hasPermission(p))">
-          <div class="app-drawer__section">Catálogos</div>
-
-          <nav class="app-drawer__nav">
-            <AppNavItem
-              v-if="userStore.hasPermission('categorias.index')"
-              to="/categorias"
-              icon="category"
-              label="Categorías"
-            />
-            <AppNavItem
-              v-if="userStore.hasPermission('marcas.index')"
-              to="/marcas"
-              icon="verified"
-              label="Marcas"
-            />
-            <AppNavItem
-              v-if="userStore.hasPermission('unidades.index')"
-              to="/unidades"
-              icon="straighten"
-              label="Unidades de medida"
-            />
-            <AppNavItem
-              v-if="userStore.hasPermission('colores.index')"
-              to="/colores"
-              icon="palette"
-              label="Colores"
-            />
-          </nav>
-        </template>
-
-        <template v-if="['sedes.index', 'usuarios.index', 'roles.index', 'permisos.index'].some((p) => userStore.hasPermission(p))">
-          <div class="app-drawer__section">Administración</div>
-
-          <nav class="app-drawer__nav">
-            <AppNavItem
-              v-if="userStore.hasPermission('sedes.index')"
-              to="/sedes"
-              icon="storefront"
-              label="Sedes"
-            />
-
-            <AppNavItem
-              v-if="userStore.hasPermission('usuarios.index')"
-              to="/usuarios"
-              icon="group"
-              label="Usuarios"
-            />
-
-            <AppNavItem
-              v-if="userStore.hasPermission('roles.index')"
-              to="/roles"
-              icon="badge"
-              label="Roles"
-            />
-
-            <AppNavItem
-              v-if="userStore.hasPermission('permisos.index')"
-              to="/permisos"
-              icon="key"
-              label="Permisos"
-            />
-          </nav>
-        </template>
+            <q-slide-transition>
+              <nav
+                v-show="abierta(seccion.id)"
+                :id="`menu-${seccion.id}`"
+                class="app-drawer__nav"
+              >
+                <AppNavItem
+                  v-for="item in seccion.items"
+                  :key="item.to"
+                  :to="item.to"
+                  :icon="item.icon"
+                  :label="item.label"
+                >
+                  <template
+                    v-if="badges[item.badge]"
+                    #badge
+                  >
+                    <AppBadge variant="brand">
+                      {{ badges[item.badge] }}
+                    </AppBadge>
+                  </template>
+                </AppNavItem>
+              </nav>
+            </q-slide-transition>
+          </section>
+        </div>
 
         <div class="app-drawer__user">
           <div class="app-avatar">{{ userStore.initials }}</div>
@@ -295,7 +173,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user-store'
@@ -303,6 +181,7 @@ import AppBrandMark from '@/components/AppBrandMark.vue'
 import AppNavItem from '@/components/AppNavItem.vue'
 import AppBadge from '@/components/AppBadge.vue'
 import AppSedeSelector from '@/components/AppSedeSelector.vue'
+import AppUserMenu from '@/components/AppUserMenu.vue'
 import InventarioService from '@/services/InventarioService'
 import PedidoService from '@/services/PedidoService'
 
@@ -339,6 +218,110 @@ async function contarAlertasLotes () {
 }
 watch(() => route.path, contarAlertasLotes, { immediate: true })
 
+// ── Menú ──
+// `badge`: la clave en `badges` (contadores que se recalculan al navegar).
+const MENU = [
+  {
+    id: 'ventas',
+    label: 'Ventas',
+    icon: 'storefront',
+    items: [
+      { to: '/pos', icon: 'point_of_sale', label: 'Punto de venta', permiso: 'ventas.store' },
+      { to: '/pedidos', icon: 'receipt_long', label: 'Pedidos', permiso: 'pedidos.index', badge: 'pendientes' },
+      { to: '/cotizaciones', icon: 'request_quote', label: 'Cotizaciones', permiso: 'cotizaciones.index' },
+      { to: '/clientes', icon: 'groups', label: 'Clientes', permiso: 'clientes.index' },
+      { to: '/caja', icon: 'account_balance_wallet', label: 'Caja', permiso: 'cajas.actual' },
+      { to: '/ofertas', icon: 'local_offer', label: 'Ofertas', permiso: 'ofertas.index' }
+    ]
+  },
+  {
+    id: 'inventario',
+    label: 'Inventario',
+    icon: 'warehouse',
+    items: [
+      { to: '/productos', icon: 'inventory_2', label: 'Productos', permiso: 'productos.index' },
+      { to: '/inventario', icon: 'swap_vert', label: 'Movimientos', permiso: 'inventario.index' },
+      { to: '/reponer', icon: 'production_quantity_limits', label: 'Por reponer', permiso: 'inventario.index' },
+      { to: '/vencimientos', icon: 'event_busy', label: 'Vencimientos', permiso: 'inventario.lotes', badge: 'lotes' },
+      { to: '/etiquetas', icon: 'mdi-barcode', label: 'Etiquetas', permiso: 'etiquetas.imprimir' }
+    ]
+  },
+  {
+    id: 'compras',
+    label: 'Compras',
+    icon: 'shopping_bag',
+    items: [
+      { to: '/compras', icon: 'shopping_bag', label: 'Compras', permiso: 'compras.index' },
+      { to: '/proveedores', icon: 'local_shipping', label: 'Proveedores', permiso: 'proveedores.index' }
+    ]
+  },
+  {
+    id: 'catalogos',
+    label: 'Catálogos',
+    icon: 'category',
+    items: [
+      { to: '/categorias', icon: 'category', label: 'Categorías', permiso: 'categorias.index' },
+      { to: '/marcas', icon: 'verified', label: 'Marcas', permiso: 'marcas.index' },
+      { to: '/unidades', icon: 'straighten', label: 'Unidades de medida', permiso: 'unidades.index' },
+      { to: '/colores', icon: 'palette', label: 'Colores', permiso: 'colores.index' }
+    ]
+  },
+  {
+    id: 'administracion',
+    label: 'Administración',
+    icon: 'admin_panel_settings',
+    items: [
+      { to: '/sedes', icon: 'storefront', label: 'Sedes', permiso: 'sedes.index' },
+      { to: '/usuarios', icon: 'group', label: 'Usuarios', permiso: 'usuarios.index' },
+      { to: '/roles', icon: 'badge', label: 'Roles', permiso: 'roles.index' },
+      { to: '/permisos', icon: 'key', label: 'Permisos', permiso: 'permisos.index' }
+    ]
+  }
+]
+
+const secciones = computed(() => MENU
+  .map((seccion) => ({ ...seccion, items: seccion.items.filter((item) => userStore.hasPermission(item.permiso)) }))
+  .filter((seccion) => seccion.items.length))
+
+const badges = computed(() => ({ pendientes: pendientes.value, lotes: alertasLotes.value }))
+
+function totalBadges (seccion) {
+  return seccion.items.reduce((suma, item) => suma + (badges.value[item.badge] ?? 0), 0)
+}
+
+// Secciones abiertas: se recuerdan en este navegador (comodidad, no dato).
+const CLAVE_MENU = 'tharwah.menu.abiertas'
+function leerAbiertas () {
+  try {
+    const guardadas = JSON.parse(localStorage.getItem(CLAVE_MENU))
+    if (Array.isArray(guardadas)) return guardadas
+  } catch {
+    // Sin storage (modo privado): arranca con la configuración por defecto.
+  }
+  return ['ventas', 'inventario']
+}
+const abiertas = ref(leerAbiertas())
+
+function abierta (id) {
+  return abiertas.value.includes(id)
+}
+
+function alternar (id) {
+  abiertas.value = abierta(id) ? abiertas.value.filter((x) => x !== id) : [...abiertas.value, id]
+  try {
+    localStorage.setItem(CLAVE_MENU, JSON.stringify(abiertas.value))
+  } catch {
+    // Igual se alterna; sólo no se recuerda.
+  }
+}
+
+// La sección de la pantalla actual siempre se ve abierta (entrar por un
+// enlace a /compras no deja la entrada escondida).
+watch(() => route.path, (ruta) => {
+  const actual = MENU.find((seccion) => seccion.items.some((item) => ruta === item.to || ruta.startsWith(`${item.to}/`)))
+  if (actual && !abierta(actual.id)) abiertas.value = [...abiertas.value, actual.id]
+}, { immediate: true })
+
 async function onLogout () {
   await userStore.logout()
   router.replace('/login')
@@ -358,6 +341,17 @@ watch(pantallaCompleta, (completa) => {
 watch(() => route.path, () => {
   if (pantallaCompleta.value) drawerOpen.value = false
 })
+
+// En escritorio, QDrawer en modo `overlay` no pone backdrop (solo lo hace en
+// móvil), así que un clic fuera no lo cierra. Lo resolvemos a mano. El botón
+// del menú queda excluido: ya alterna con su propio @click.
+function cerrarAlClicFuera (e) {
+  if (!pantallaCompleta.value || !drawerOpen.value) return
+  if (e.target.closest?.('.app-drawer, .app-toolbar__menu')) return
+  drawerOpen.value = false
+}
+onMounted(() => document.addEventListener('pointerdown', cerrarAlClicFuera))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', cerrarAlClicFuera))
 const search = ref('')
 
 function toggleDrawer () {
@@ -430,14 +424,16 @@ function toggleDrawer () {
   flex-shrink: 0;
 }
 
-.app-drawer {
+// QDrawer tiene inheritAttrs: false y pasa la clase al <aside> interno, que no
+// recibe el atributo de scope: sin :deep() esta regla nunca matchea.
+:deep(.app-drawer) {
   background: var(--app-surface);
-  border-right: 1px solid var(--app-border-subtle);
+  border-right: 1px solid var(--app-border-control);
 }
 
 // QDrawer scrollea en un hijo, no en su raíz. Sin fondo transparente acá, el
 // hijo taparía la superficie que acabamos de definir arriba.
-.app-drawer :deep(.q-drawer__content) {
+:deep(.app-drawer .q-drawer__content) {
   background: transparent;
 }
 
@@ -462,13 +458,15 @@ function toggleDrawer () {
   color: var(--app-ink);
 }
 
-.app-drawer__section {
-  padding: 0 8px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.7px;
-  text-transform: uppercase;
-  color: var(--app-ink-2);
+.app-drawer__menu {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  margin: 0 -6px 12px;
+  padding: 0 6px;
+  overflow-y: auto;
 }
 
 .app-drawer__nav {
@@ -477,10 +475,53 @@ function toggleDrawer () {
   gap: 3px;
 }
 
-// Una sección que viene después de otra lista necesita aire arriba; la
-// primera no, ya la separa la marca.
-.app-drawer__nav + .app-drawer__section {
-  margin-top: 22px;
+.app-drawer__grupo {
+  margin-top: 10px;
+}
+
+// Encabezado de sección: también es el botón que la abre y cierra.
+.app-drawer__section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--app-ink-2);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--app-border-subtle);
+    color: var(--app-ink);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $primary;
+    outline-offset: 1px;
+  }
+}
+
+.app-drawer__sectionLabel {
+  flex: 1;
+  text-align: left;
+}
+
+.app-drawer__chevron {
+  transition: transform 0.2s ease;
+
+  &--abierta {
+    transform: rotate(180deg);
+  }
+}
+
+.app-drawer__grupo .app-drawer__nav {
+  padding-top: 4px;
 }
 
 .app-drawer__user {

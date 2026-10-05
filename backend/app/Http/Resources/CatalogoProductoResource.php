@@ -30,7 +30,7 @@ class CatalogoProductoResource extends JsonResource
         // de la variante puntual o de la categoría).
         $variantes = $this->variantes->map(fn ($v) => [
             'variante' => $v,
-            ...$precios->vigente((float) ($v->precio ?? $this->precio), $this->id, $this->categoria_id, $v->id),
+            ...$precios->vigente($v->precioBase((float) $this->precio), $this->id, $this->categoria_id, $v->id),
         ]);
 
         // Badge de la tarjeta: la oferta más fuerte entre sus variantes ("-30%

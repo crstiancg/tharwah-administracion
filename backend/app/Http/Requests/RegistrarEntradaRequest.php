@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\Sedes;
 use Illuminate\Validation\Rule;
 
 /**
@@ -13,7 +14,10 @@ class RegistrarEntradaRequest extends MovimientoInventarioRequest
     protected function reglasDeLinea(int|string $i): array
     {
         return [
-            "movimiento.lineas.{$i}.cantidad" => $this->reglasCantidad($i),
+            "movimiento.lineas.{$i}.cantidad" => [
+                ...$this->reglasCantidad($i),
+                Sedes::habilitada($this->input("movimiento.lineas.{$i}.variante_id"), $this->user()?->sede_id),
+            ],
             "movimiento.lineas.{$i}.costo_unitario" => ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
             "movimiento.lineas.{$i}.lote" => [Rule::requiredIf(fn () => $this->manejaLotes($i)), 'nullable', 'string', 'max:40'],
             // No se recibe mercadería ya vencida.

@@ -42,9 +42,10 @@ return [
         'sedes.show' => ['sedes.update'],
         // Elegir sede: al asignarla a un usuario, al cambiarse de sede, al
         // trasladar y en los filtros de inventario, pedidos y cajas.
-        'sedes.index' => ['usuarios.store', 'usuarios.update', 'auth.cambiar-sede', 'inventario.traslados', 'inventario.index', 'inventario.lotes', 'pedidos.index', 'cajas.index'],
+        'sedes.index' => ['usuarios.store', 'usuarios.update', 'auth.cambiar-sede', 'inventario.traslados', 'inventario.index', 'inventario.lotes', 'pedidos.index', 'cajas.index', 'productos.index', 'productos.store', 'productos.update'],
         'unidades.show' => ['unidades.update'],
-        'productos.show' => ['productos.update'],
+        // Quien ve la lista abre la ficha del producto (stock, lotes, movimientos).
+        'productos.show' => ['productos.update', 'productos.index'],
         'ofertas.show' => ['ofertas.update'],
         // El form de ofertas busca el producto al que se aplica.
         'productos.index' => ['ofertas.store', 'ofertas.update'],
@@ -54,6 +55,8 @@ return [
         'unidades.index' => ['productos.store', 'productos.update'],
         'colores.index' => ['productos.store', 'productos.update', 'ventas.store'],
         'ventas.catalogo' => ['ventas.store'],
+        // La ficha de sólo lectura del POS (el vendedor no administra productos).
+        'ventas.ficha' => ['ventas.store'],
         // Los formularios de inventario buscan la variante de cada línea.
         // Los formularios de pedidos buscan variantes y clientes.
         // La salida manual elige de qué lote sacar.
@@ -133,6 +136,7 @@ return [
         'cerrar' => 'Cerrar caja (arqueo)',
         'movimientos' => 'Registrar ingresos y egresos',
         'catalogo' => 'Ver catálogo',
+        'ficha' => 'Ver ficha de producto',
         'imprimir' => 'Imprimir códigos de barras',
         'consultar-ruc' => 'Consultar RUC',
         'anular' => 'Anular',

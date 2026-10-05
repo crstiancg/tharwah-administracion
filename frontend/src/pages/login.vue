@@ -223,7 +223,7 @@ async function onSubmit () {
 // mientras el panel seguía enorme.
 .auth {
   display: grid;
-  grid-template-columns: minmax(0, 1.06fr) minmax(430px, 0.94fr);
+  grid-template-columns: minmax(0, 1.65fr) minmax(430px, 1fr);
 
   // dvh y no vh: en mobile el vh cuenta la barra del navegador como si no
   // existiera, así que el pie quedaba cortado.
@@ -436,7 +436,7 @@ async function onSubmit () {
   // La altura va acá y no adentro del componente porque es una decisión de
   // esta composición —cuánto cede el formulario— y no del panel en sí.
   .auth__showcase {
-    height: 188px;
+    height: 240px;
   }
 
   .auth__form {

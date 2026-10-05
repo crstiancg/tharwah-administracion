@@ -362,22 +362,31 @@
         {{ errores['venta.pagos'][0] }}
       </p>
 
+      <!-- Estado de la caja: es diaria, se abre y se cierra desde acá. -->
       <div
-        v-if="!cargandoCaja && !caja"
-        class="carrito__caja"
-        role="alert"
+        v-if="estadoCaja"
+        :class="['carrito__caja', `carrito__caja--${estadoCaja.tono}`]"
+        :role="estadoCaja.tono === 'ok' ? 'status' : 'alert'"
       >
         <q-icon
-          name="lock"
+          :name="estadoCaja.icono"
           size="16px"
         />
-        <span>Caja cerrada</span>
+        <span>{{ estadoCaja.texto }}</span>
         <button
-          v-if="userStore.hasPermission('cajas.abrir')"
+          v-if="!caja && userStore.hasPermission('cajas.abrir')"
           type="button"
           @click="abrirCajaDialog = true"
         >
-          Abrir
+          Abrir caja
+        </button>
+        <button
+          v-else-if="caja && userStore.hasPermission('cajas.cerrar')"
+          type="button"
+          :disabled="preparandoCierre"
+          @click="pedirCierre"
+        >
+          Cerrar caja
         </button>
       </div>
 
@@ -407,15 +416,43 @@
         @save="cajaAbierta"
       />
     </AppDialog>
+
+    <AppDialog
+      v-model="cerrarCajaDialog"
+      :title="caja?.vencida ? `Cerrar la caja del ${diaDe(caja.abierta_at)}` : 'Cerrar caja'"
+      persistent
+    >
+      <CerrarCajaForm
+        v-if="cerrarCajaDialog && caja"
+        ref="cerrarRef"
+        :caja="caja"
+        @save="cajaCerrada"
+      />
+      <template #actions>
+        <AppButton
+          variant="tertiary"
+          label="Volver"
+          @click="cerrarCajaDialog = false"
+        />
+        <AppButton
+          variant="primary"
+          label="Cerrar caja"
+          :loading="cerrarRef?.form.processing"
+          @click="cerrarRef.submit()"
+        />
+      </template>
+    </AppDialog>
   </aside>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, useId, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useQuasar } from 'quasar'
+import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AbrirCajaForm from '@/modules/Caja/AbrirCajaForm.vue'
-import { CON_OPERACION, METODOS } from '@/modules/Caja/constantes'
+import CerrarCajaForm from '@/modules/Caja/CerrarCajaForm.vue'
+import { avisoCierre, CON_OPERACION, HORA_AVISO_CIERRE, METODOS } from '@/modules/Caja/constantes'
 import BuscadorCliente from '@/modules/Pedidos/BuscadorCliente.vue'
 import CajaService from '@/services/CajaService'
 import VentaService from '@/services/VentaService'
@@ -449,9 +486,15 @@ const uid = `carrito-${useId()}`
 const clienteRef = ref()
 
 // ── Caja ──
+// Es diaria: al entrar sin caja se pide abrirla; la de un día anterior no
+// cobra (el backend la rechaza) hasta cerrarla; y desde HORA_AVISO_CIERRE se
+// avisa que hay que cerrarla antes de terminar el día.
 const caja = ref(null)
 const cargandoCaja = ref(true)
 const abrirCajaDialog = ref(false)
+const cerrarCajaDialog = ref(false)
+const cerrarRef = ref()
+const preparandoCierre = ref(false)
 
 async function cargarCaja () {
   try {
@@ -467,7 +510,51 @@ function cajaAbierta (nueva) {
   $q.notify({ type: 'positive', message: 'Caja abierta.', position: 'top-right', timeout: 1500 })
 }
 
-onMounted(cargarCaja)
+// El resumen se recarga antes del arqueo: las ventas de la sesión cambiaron
+// el efectivo esperado desde que se cargó el POS.
+async function pedirCierre () {
+  preparandoCierre.value = true
+  try {
+    await cargarCaja()
+    if (caja.value) cerrarCajaDialog.value = true
+  } finally {
+    preparandoCierre.value = false
+  }
+}
+
+function cajaCerrada (resultado) {
+  cerrarCajaDialog.value = false
+  caja.value = null
+  $q.notify(avisoCierre(resultado, formatearPrecio))
+}
+
+// Reloj por minuto para que el aviso de fin del día aparezca solo.
+const ahora = ref(new Date())
+const reloj = setInterval(() => { ahora.value = new Date() }, 60_000)
+onBeforeUnmount(() => clearInterval(reloj))
+
+const formatoDia = new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: '2-digit' })
+function diaDe (iso) {
+  return formatoDia.format(new Date(iso))
+}
+
+const estadoCaja = computed(() => {
+  if (cargandoCaja.value) return null
+  if (!caja.value) return { tono: 'error', icono: 'lock', texto: 'Caja cerrada' }
+  if (caja.value.vencida) {
+    return { tono: 'error', icono: 'warning', texto: `La caja del ${diaDe(caja.value.abierta_at)} sigue abierta` }
+  }
+  if (ahora.value.getHours() >= HORA_AVISO_CIERRE) {
+    return { tono: 'aviso', icono: 'schedule', texto: 'Fin del día: cerrá la caja' }
+  }
+  return { tono: 'ok', icono: 'lock_open', texto: `Caja abierta · ${horaDe(caja.value.abierta_at)}` }
+})
+
+onMounted(async () => {
+  await cargarCaja()
+  if (!caja.value && userStore.hasPermission('cajas.abrir')) abrirCajaDialog.value = true
+  else if (caja.value?.vencida && userStore.hasPermission('cajas.cerrar')) cerrarCajaDialog.value = true
+})
 
 // ── Carrito ──
 function fijar (item, evento) {
@@ -526,7 +613,7 @@ function errorPago (j, campo) {
 }
 
 const puedeCobrar = computed(() =>
-  Boolean(caja.value) && pos.items.length > 0 && pos.total > 0 && Math.abs(pos.restante) < 0.005 && !procesando.value)
+  Boolean(caja.value) && !caja.value.vencida && pos.items.length > 0 && pos.total > 0 && Math.abs(pos.restante) < 0.005 && !procesando.value)
 
 async function cobrar () {
   if (!puedeCobrar.value) {
@@ -985,7 +1072,6 @@ defineExpose({ cobrar, enfocarCliente })
   gap: 8px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: rgba($negative, 0.08);
   font-size: 13px;
   font-weight: 600;
   color: var(--app-ink);
@@ -999,6 +1085,33 @@ defineExpose({ cobrar, enfocarCliente })
     font-weight: 600;
     color: #FFFFFF;
     cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+  }
+
+  &--error {
+    background: rgba($negative, 0.08);
+  }
+
+  &--aviso {
+    background: rgba($warning, 0.16);
+  }
+
+  // Caja en orden: discreto, sin competir con el botón de cobrar.
+  &--ok {
+    padding: 2px 0;
+    font-weight: 500;
+    color: var(--app-ink-2);
+
+    button {
+      padding: 0;
+      background: none;
+      color: var(--app-ink-2);
+      text-decoration: underline;
+    }
   }
 }
 

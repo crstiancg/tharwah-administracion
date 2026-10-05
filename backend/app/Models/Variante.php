@@ -13,13 +13,14 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 /**
  * Una presentación de un producto ("Cartucho 300 ml", opcionalmente en un
- * color): lo que efectivamente tiene SKU y stock.
+ * color): lo que efectivamente tiene SKU y stock. Es común a todas las
+ * sedes; cada sede la habilita y le pone precio y mínimo en `stocks`.
  * `stock` y `costo_promedio` no son fillable a propósito: sólo los mueve
  * App\Services\Inventario, dejando su movimiento en el libro.
  * `codigo_barras` tampoco: lo asigna el sistema al crear y no cambia nunca
  * (ya está impreso en las etiquetas).
  */
-#[Fillable(['presentacion', 'unidad_id', 'color_id', 'sku', 'precio', 'stock_minimo'])]
+#[Fillable(['presentacion', 'unidad_id', 'color_id', 'sku', 'precio'])]
 class Variante extends Model
 {
     protected static function booted(): void
@@ -36,7 +37,6 @@ class Variante extends Model
             'precio' => 'decimal:2',
             // float y no decimal:3: el front compara números (stock > 0).
             'stock' => 'float',
-            'stock_minimo' => 'float',
             'costo_promedio' => 'decimal:4',
         ];
     }
@@ -52,7 +52,8 @@ class Variante extends Model
     }
 
     /**
-     * Agrega `stock_sede`: el stock en esa sede (0 si nunca tuvo).
+     * Agrega lo de esa sede: `stock_sede` (0 si nunca tuvo), `precio_sede`
+     * (null = el general) y `stock_minimo_sede`.
      */
     public function scopeConStockDeSede(Builder $query, int $sedeId): void
     {
@@ -60,10 +61,47 @@ class Variante extends Model
             $query->select('variantes.*');
         }
 
-        $query->addSelect(['stock_sede' => Stock::query()
-            ->selectRaw('COALESCE(SUM(cantidad), 0)')
+        $deLaSede = fn (string $columna) => Stock::query()
+            ->select($columna)
             ->whereColumn('stocks.variante_id', 'variantes.id')
-            ->where('stocks.sede_id', $sedeId)]);
+            ->where('stocks.sede_id', $sedeId)
+            ->limit(1);
+
+        $query->addSelect([
+            'stock_sede' => Stock::query()
+                ->selectRaw('COALESCE(SUM(cantidad), 0)')
+                ->whereColumn('stocks.variante_id', 'variantes.id')
+                ->where('stocks.sede_id', $sedeId),
+            'precio_sede' => $deLaSede('precio'),
+            'stock_minimo_sede' => $deLaSede('stock_minimo'),
+        ]);
+    }
+
+    /**
+     * Sólo las que esa sede vende.
+     */
+    public function scopeHabilitadaEnSede(Builder $query, int $sedeId): void
+    {
+        $query->whereHas('stocks', fn (Builder $s) => $s->where('sede_id', $sedeId)->where('activo', true));
+    }
+
+    /**
+     * Precio de lista: el de la sede (si se pidió con conStockDeSede() y
+     * tiene uno propio), si no el de la presentación, si no el del producto.
+     */
+    public function precioBase(?float $precioProducto = null): float
+    {
+        $deLaSede = $this->attributes['precio_sede'] ?? null;
+
+        return (float) ($deLaSede ?? $this->precio ?? $precioProducto ?? $this->producto->precio);
+    }
+
+    /**
+     * El mínimo de la sede consultada (0 si no se pidió por sede).
+     */
+    public function stockMinimoVisible(): float
+    {
+        return (float) ($this->attributes['stock_minimo_sede'] ?? 0);
     }
 
     /**

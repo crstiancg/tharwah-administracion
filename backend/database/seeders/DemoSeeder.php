@@ -12,6 +12,7 @@ use App\Models\Pedido;
 use App\Models\Producto;
 use App\Models\Proveedor;
 use App\Models\Sede;
+use App\Models\Stock;
 use App\Models\Unidad;
 use App\Models\User;
 use App\Models\Variante;
@@ -82,7 +83,7 @@ class DemoSeeder extends Seeder
         DB::transaction(function () {
             [$lima, $arequipa] = $this->sedes();
             [$admin, $vendedor] = $this->usuarios($lima, $arequipa);
-            $v = $this->catalogo();
+            $v = $this->catalogo($lima, $arequipa);
             [$sika, $distribuidora, $ferreteria] = $this->proveedores();
             $clientes = $this->clientes();
 
@@ -142,12 +143,19 @@ class DemoSeeder extends Seeder
     }
 
     /**
-     * Productos de materiales de construcción con sus presentaciones.
+     * Productos de materiales de construcción con sus presentaciones, y qué
+     * vende cada sede: Lima todo; Arequipa casi todo, con mínimos más chicos
+     * y algunos precios propios (el flete encarece).
      *
      * @return array<string, Variante> por SKU
      */
-    private function catalogo(): array
+    private function catalogo(Sede $lima, Sede $arequipa): array
     {
+        // Lo que Arequipa no vende.
+        $soloLima = ['Sika MonoTop 612', 'Chema Techo', 'Chema Sello Acrílico', 'Anclaje químico epóxico'];
+        // Precio propio en Arequipa, por SKU.
+        $preciosArequipa = ['SK1-GL' => 34.00, 'SK1-BLD20' => 142.00, 'SKCERAM-25' => 33.50, 'SKGROUT-30' => 61.00];
+
         $marcas = collect(['Sika', 'Chema', 'Z Aditivos', 'Celima'])
             ->mapWithKeys(fn ($nombre) => [$nombre => Marca::firstOrCreate(['nombre' => $nombre], ['activo' => true])]);
 
@@ -232,12 +240,33 @@ class DemoSeeder extends Seeder
                     'color_id' => $color?->id,
                     'sku' => $sku,
                     'precio' => $precioPropio,
-                    'stock_minimo' => $minimo,
                 ]);
+
+                $this->habilitar($variantes[$sku], $lima, $minimo);
+                if (! in_array($nombre, $soloLima, true)) {
+                    $this->habilitar($variantes[$sku], $arequipa, ceil($minimo / 2), $preciosArequipa[$sku] ?? null);
+                }
             }
         }
 
         return $variantes;
+    }
+
+    /**
+     * La presentación se vende en la sede (fila de `stocks` en 0, como la
+     * deja el formulario de productos).
+     */
+    private function habilitar(Variante $variante, Sede $sede, float $minimo, ?float $precio = null): void
+    {
+        $stock = new Stock;
+        $stock->forceFill([
+            'variante_id' => $variante->id,
+            'sede_id' => $sede->id,
+            'cantidad' => 0,
+            'activo' => true,
+            'precio' => $precio,
+            'stock_minimo' => $minimo,
+        ])->save();
     }
 
     /**

@@ -27,13 +27,17 @@ class VarianteResource extends JsonResource
             'codigo_barras' => $this->codigo_barras,
             // null = usa el precio base del producto.
             'precio' => $this->precio,
-            // Total de la empresa y, en el detalle, por sede.
+            // Total de la empresa y, en el detalle, cada sede: su stock y cómo
+            // la vende (activo, precio propio, mínimo).
             'stock' => $this->stock,
-            'stocks' => $this->whenLoaded('stocks', fn () => $this->stocks
-                ->filter(fn ($s) => $s->cantidad != 0)
-                ->map(fn ($s) => ['sede_id' => $s->sede_id, 'sede' => $s->sede?->nombre, 'cantidad' => $s->cantidad])
-                ->values()),
-            'stock_minimo' => $this->stock_minimo,
+            'stocks' => $this->whenLoaded('stocks', fn () => $this->stocks->map(fn ($s) => [
+                'sede_id' => $s->sede_id,
+                'sede' => $s->sede?->nombre,
+                'cantidad' => $s->cantidad,
+                'activo' => $s->activo,
+                'precio' => $s->precio,
+                'stock_minimo' => $s->stock_minimo,
+            ])->values()),
             // Con historial de inventario no se puede quitar del producto.
             'con_movimientos' => $this->whenHas('movimientos_exists', fn ($existe) => (bool) $existe),
             'archivos' => ArchivoResource::collection($this->whenLoaded('archivos')),

@@ -12,7 +12,7 @@
           icon="history"
           to="/cajas"
         />
-        <template v-if="caja">
+        <template v-if="caja && !caja.vencida">
           <AppButton
             v-if="userStore.hasPermission('cajas.movimientos')"
             label="Ingreso"
@@ -25,13 +25,6 @@
             icon="remove"
             @click="abrirMovimiento('egreso')"
           />
-          <AppButton
-            v-if="userStore.hasPermission('cajas.cerrar')"
-            variant="primary"
-            label="Cerrar caja"
-            icon="lock"
-            @click="cerrarDialog = true"
-          />
         </template>
       </template>
     </AppPageHeader>
@@ -43,33 +36,56 @@
       <q-spinner size="28px" />
     </div>
 
-    <!-- Sin caja abierta: abrirla es lo primero del día. -->
+    <!-- Abrir y cerrar se hace en el punto de venta: acá sólo se consulta. -->
     <AppCard
       v-else-if="!caja"
       class="caja__cerrada"
     >
+      <div class="caja__icono">
+        <q-icon
+          name="lock"
+          size="28px"
+        />
+      </div>
       <h2 class="caja__titulo">
-        No hay una caja abierta
+        La caja está cerrada
       </h2>
       <p class="caja__texto">
-        Para cobrar pedidos (en cualquier método) tiene que haber una caja abierta.
+        La caja se abre cada día desde el punto de venta, con el efectivo inicial del cajón,
+        y se cierra ahí mismo con el arqueo al terminar la jornada.
       </p>
-      <AbrirCajaForm
-        v-if="userStore.hasPermission('cajas.abrir')"
-        @save="abierta"
+      <AppButton
+        v-if="userStore.hasPermission('ventas.store')"
+        variant="primary"
+        label="Ir al punto de venta"
+        icon="point_of_sale"
+        to="/pos"
       />
-      <p
-        v-else
-        class="caja__texto"
-      >
-        Pedile a quien tenga permiso que la abra.
-      </p>
     </AppCard>
 
-    <CajaResumen
-      v-else
-      :caja="caja"
-    />
+    <template v-else>
+      <div
+        v-if="caja.vencida"
+        class="caja__aviso"
+        role="alert"
+      >
+        <q-icon
+          name="warning"
+          size="20px"
+        />
+        <span>
+          Esta caja es de un día anterior y ya no cobra. Cerrala desde el punto de venta y abrí la de hoy.
+        </span>
+        <AppButton
+          v-if="userStore.hasPermission('ventas.store')"
+          variant="tertiary"
+          label="Ir al POS"
+          to="/pos"
+        />
+      </div>
+
+      <CajaResumen :caja="caja" />
+    </template>
 
     <AppDialog
       v-model="movimientoDialog"
@@ -97,31 +113,6 @@
       </template>
     </AppDialog>
 
-    <AppDialog
-      v-model="cerrarDialog"
-      title="Cerrar caja"
-      persistent
-    >
-      <CerrarCajaForm
-        v-if="cerrarDialog && caja"
-        ref="cerrarRef"
-        :caja="caja"
-        @save="cerrada"
-      />
-      <template #actions>
-        <AppButton
-          variant="tertiary"
-          label="Volver"
-          @click="cerrarDialog = false"
-        />
-        <AppButton
-          variant="primary"
-          label="Cerrar caja"
-          :loading="cerrarRef?.form.processing"
-          @click="cerrarRef.submit()"
-        />
-      </template>
-    </AppDialog>
   </div>
 </template>
 
@@ -134,10 +125,7 @@ import AppDialog from '@/components/AppDialog.vue'
 import AppPageHeader from '@/components/AppPageHeader.vue'
 import CajaService from '@/services/CajaService'
 import { useUserStore } from '@/stores/user-store'
-import { formatearPrecio } from '@/utils/moneda'
-import AbrirCajaForm from './AbrirCajaForm.vue'
 import CajaResumen from './CajaResumen.vue'
-import CerrarCajaForm from './CerrarCajaForm.vue'
 import MovimientoCajaForm from './MovimientoCajaForm.vue'
 
 const $q = useQuasar()
@@ -150,6 +138,7 @@ const formatoFecha = new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', time
 
 const subtitulo = computed(() => {
   if (!caja.value) return 'Cerrada'
+  if (caja.value.vencida) return `Abierta desde el ${formatoFecha.format(new Date(caja.value.abierta_at))}: falta cerrarla`
   const quien = caja.value.abierta_por?.name
   return `Abierta desde ${formatoFecha.format(new Date(caja.value.abierta_at))}${quien ? ` por ${quien}` : ''}`
 })
@@ -164,11 +153,6 @@ async function cargar () {
 }
 
 onMounted(cargar)
-
-function abierta (nueva) {
-  caja.value = nueva
-  $q.notify({ type: 'positive', message: 'Caja abierta.', position: 'top-right', timeout: 1500 })
-}
 
 // ── Ingresos / egresos ──
 const movimientoDialog = ref(false)
@@ -185,24 +169,6 @@ function movimientoGuardado (actualizada) {
   caja.value = actualizada
   $q.notify({ type: 'positive', message: 'Movimiento registrado.', position: 'top-right', timeout: 1500 })
 }
-
-// ── Cierre ──
-const cerrarDialog = ref(false)
-const cerrarRef = ref()
-
-function cerrada (resultado) {
-  cerrarDialog.value = false
-  caja.value = null
-  const diferencia = Number(resultado?.diferencia ?? 0)
-  $q.notify({
-    type: diferencia === 0 ? 'positive' : 'warning',
-    message: diferencia === 0
-      ? 'Caja cerrada: cuadra exacto.'
-      : `Caja cerrada con ${diferencia < 0 ? 'faltante' : 'sobrante'} de ${formatearPrecio(Math.abs(diferencia))}.`,
-    position: 'top-right',
-    timeout: 4000
-  })
-}
 </script>
 
 <style lang="scss" scoped>
@@ -215,21 +181,53 @@ function cerrada (resultado) {
 .caja__cerrada {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 12px;
-  max-width: 520px;
+  max-width: 480px;
+  width: 100%;
+  margin: 24px auto 0;
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.caja__icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  background: var(--app-brand-soft);
+  color: var(--app-brand-soft-ink);
 }
 
 .caja__titulo {
-  margin: 0;
+  margin: 4px 0 0;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--app-ink);
 }
 
 .caja__texto {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--app-ink-2);
+}
+
+.caja__aviso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--app-negative-border);
+  border-radius: 12px;
+  background: var(--app-negative-soft);
+  font-size: 14px;
+  color: var(--app-ink);
+
+  span {
+    flex: 1;
+  }
 }
 </style>

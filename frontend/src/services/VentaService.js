@@ -11,6 +11,14 @@ class VentaService {
   }
 
   /**
+   * Ficha de sólo lectura de un producto para el vendedor: precio de hoy,
+   * stock aquí y en otras sedes, lotes con su vencimiento.
+   */
+  static async ficha (id) {
+    return (await api.get(`api/ventas/catalogo/${id}`)).data
+  }
+
+  /**
    * Venta de mostrador: crea el pedido, lo confirma, lo cobra y lo entrega
    * en una sola transacción. Devuelve el pedido completo (para el ticket).
    */

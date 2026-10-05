@@ -6,8 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Stock de una presentación en una sede. Sin fillable a propósito: lo mueve
- * sólo App\Services\Inventario, dejando su movimiento en el libro.
+ * Una presentación en una sede: cuánto hay y cómo la vende esa sede (si la
+ * vende, a qué precio y con qué mínimo). Sin fillable a propósito: la
+ * cantidad la mueve sólo App\Services\Inventario y la configuración el
+ * formulario de productos (ProductoController).
  */
 class Stock extends Model
 {
@@ -17,6 +19,9 @@ class Stock extends Model
     {
         return [
             'cantidad' => 'float',
+            'activo' => 'boolean',
+            'precio' => 'decimal:2',
+            'stock_minimo' => 'float',
         ];
     }
 

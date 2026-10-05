@@ -208,3 +208,13 @@ body.body--dark {
     -webkit-print-color-adjust: exact;
   }
 }
+
+// Scrollbars ocultas en todo el sistema: se sigue pudiendo scrollear con la
+// rueda, el trackpad o el teclado, solo no se dibuja la barra.
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}

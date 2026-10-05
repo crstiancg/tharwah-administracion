@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Pago;
 use App\Models\Variante;
 use App\Support\Cantidades;
+use App\Support\Sedes;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -61,7 +62,10 @@ class RegistrarVentaRequest extends FormRequest
         ];
 
         foreach (array_keys((array) $this->input('venta.items', [])) as $i) {
-            $rules["venta.items.{$i}.variante_id"] = ['required', 'integer', 'exists:variantes,id', $this->varianteUnica($i), $this->productoActivo()];
+            $rules["venta.items.{$i}.variante_id"] = [
+                'required', 'integer', 'exists:variantes,id', $this->varianteUnica($i), $this->productoActivo(),
+                Sedes::habilitada($this->input("venta.items.{$i}.variante_id"), $this->user()?->sede_id),
+            ];
             $rules["venta.items.{$i}.cantidad"] = [...Cantidades::positiva(10000), Cantidades::segunUnidad($this->input("venta.items.{$i}.variante_id"))];
             $rules["venta.items.{$i}.precio_unitario"] = ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
         }

@@ -96,6 +96,7 @@ Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
     // transacción (reusa los servicios de pedidos y caja).
     Route::post('ventas', [VentaController::class, 'store'])->name('ventas.store');
     Route::get('ventas/catalogo', [VentaController::class, 'catalogo'])->name('ventas.catalogo');
+    Route::get('ventas/catalogo/{producto}', [VentaController::class, 'ficha'])->name('ventas.ficha');
 
     // "actual" va antes de {caja}: si no, la captura como id.
     Route::get('cajas/actual', [CajaController::class, 'actual'])->name('cajas.actual');

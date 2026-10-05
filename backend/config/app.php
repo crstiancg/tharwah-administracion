@@ -67,6 +67,10 @@ return [
 
     'timezone' => 'UTC',
 
+    // Zona del negocio: decide qué es "hoy" (la caja se abre por día). Las
+    // fechas se siguen guardando en UTC; esto sólo se usa para comparar días.
+    'zona_negocio' => env('APP_ZONA_NEGOCIO', 'America/Lima'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration

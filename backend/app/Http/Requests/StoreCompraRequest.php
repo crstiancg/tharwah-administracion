@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Compra;
 use App\Models\Variante;
 use App\Support\Cantidades;
+use App\Support\Sedes;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -65,7 +66,10 @@ class StoreCompraRequest extends FormRequest
 
         foreach (array_keys((array) $this->input('compra.items', [])) as $i) {
             $varianteId = $this->input("compra.items.{$i}.variante_id");
-            $rules["compra.items.{$i}.variante_id"] = ['required', 'integer', 'exists:variantes,id', $this->varianteUnica($i)];
+            $rules["compra.items.{$i}.variante_id"] = [
+                'required', 'integer', 'exists:variantes,id', $this->varianteUnica($i),
+                Sedes::habilitada($varianteId, $this->user()?->sede_id),
+            ];
             $rules["compra.items.{$i}.cantidad"] = [...Cantidades::positiva(), Cantidades::segunUnidad($varianteId)];
             $rules["compra.items.{$i}.costo_unitario"] = ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
             $rules["compra.items.{$i}.lote"] = [Rule::requiredIf(fn () => $this->manejaLotes($varianteId)), 'nullable', 'string', 'max:40'];

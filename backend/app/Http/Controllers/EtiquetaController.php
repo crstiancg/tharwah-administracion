@@ -34,7 +34,7 @@ class EtiquetaController extends Controller
         // Por nombre de producto y, dentro, en el orden en que se cargaron.
         $query->join('productos', 'productos.id', '=', 'variantes.producto_id')
             ->select('variantes.*')
-            ->when($request->user()->sede_id, fn ($q, $sedeId) => $q->conStockDeSede($sedeId))
+            ->when($request->user()->sede_id, fn ($q, $sedeId) => $q->habilitadaEnSede($sedeId)->conStockDeSede($sedeId))
             ->orderBy('productos.nombre')
             ->orderBy('variantes.producto_id')
             ->orderBy('variantes.id');
