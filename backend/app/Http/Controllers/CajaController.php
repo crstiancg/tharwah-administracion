@@ -6,6 +6,7 @@ use App\Http\Requests\CajaRequest;
 use App\Http\Resources\CajaResource;
 use App\Models\Caja;
 use App\Services\Cajas;
+use App\Support\Permisos;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -95,6 +96,14 @@ class CajaController extends Controller
             'movimientos.usuario:id,name',
         ]);
 
-        return (new CajaResource($caja))->conResumen($this->cajas->resumen($caja))->resolve(request());
+        $datos = (new CajaResource($caja))->conResumen($this->cajas->resumen($caja))->resolve(request());
+
+        // La ganancia muestra costos: sólo a quien ve reportes o administra productos.
+        $user = request()->user();
+        if (Permisos::puede($user, 'reportes.ventas') || Permisos::puede($user, 'productos.update')) {
+            $datos['ventas_turno'] = $this->cajas->ventasDelTurno($caja);
+        }
+
+        return $datos;
     }
 }

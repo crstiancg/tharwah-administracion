@@ -85,6 +85,44 @@ class Cajas
     }
 
     /**
+     * Ventas del turno: los pedidos de la sede confirmados mientras la caja
+     * estuvo abierta, con su costo congelado y la ganancia. Se calcula sobre
+     * lo VENDIDO y no sobre lo cobrado (un adelanto entra a la caja sin ser
+     * venta todavía; una devolución sale aunque la venta fuera de otro día).
+     *
+     * @return array<string, mixed>
+     */
+    public function ventasDelTurno(Caja $caja): array
+    {
+        $pedidos = Pedido::query()
+            ->where('sede_id', $caja->sede_id)
+            ->whereIn('estado', [Pedido::CONFIRMADO, Pedido::ENTREGADO])
+            ->whereBetween('confirmado_at', [$caja->abierta_at, $caja->cerrada_at ?? now()]);
+
+        $totales = (clone $pedidos)->selectRaw('COUNT(*) as ventas, COALESCE(SUM(total), 0) as total, COALESCE(SUM(igv), 0) as igv')->first();
+
+        $costos = DB::table('pedido_items')
+            ->whereIn('pedido_id', (clone $pedidos)->select('id'))
+            ->selectRaw('COALESCE(SUM(cantidad * costo_unitario), 0) as costo')
+            ->selectRaw('SUM(CASE WHEN costo_unitario IS NULL THEN 1 ELSE 0 END) as sin_costo')
+            ->first();
+
+        $total = round((float) $totales->total, 2);
+        $costo = round((float) $costos->costo, 2);
+
+        return [
+            'ventas' => (int) $totales->ventas,
+            'total' => $total,
+            'igv' => round((float) $totales->igv, 2),
+            'costo' => $costo,
+            'ganancia' => round($total - $costo, 2),
+            'margen' => $total > 0 ? round(($total - $costo) / $total * 100, 1) : null,
+            // Ítems sin costo (entraron por un ajuste): la ganancia no los descuenta.
+            'items_sin_costo' => (int) $costos->sin_costo,
+        ];
+    }
+
+    /**
      * Cobro de un pedido pendiente o confirmado (un pendiente puede recibir
      * un adelanto). Nunca más que el saldo. En efectivo, `recibido` es lo que
      * entregó el cliente y se calcula el vuelto.

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\Permisos;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -27,6 +28,12 @@ class VarianteResource extends JsonResource
             'codigo_barras' => $this->codigo_barras,
             // null = usa el precio base del producto.
             'precio' => $this->precio,
+            // Costo promedio (para ver la ganancia): sólo a quien administra
+            // productos o ve reportes, no a cualquier vendedor.
+            'costo_promedio' => $this->when(
+                Permisos::puede($request->user(), 'productos.update') || Permisos::puede($request->user(), 'reportes.ventas'),
+                fn () => $this->costo_promedio,
+            ),
             // Total de la empresa y, en el detalle, cada sede: su stock y cómo
             // la vende (activo, precio propio, mínimo).
             'stock' => $this->stock,

@@ -34,6 +34,7 @@
       hide-bottom-space
       no-error-icon
       :type="inputType"
+      :aria-describedby="hint ? hintId : undefined"
       :error="Boolean(error)"
       :error-message="error"
       :class="['app-field__control', `app-field__control--${size}`]"
@@ -70,6 +71,16 @@
         />
       </template>
     </q-input>
+
+    <!-- Leyenda: qué dato va en el campo. Se oculta mientras hay error
+         (el error ya dice qué corregir y dos textos juntos se pisan). -->
+    <p
+      v-if="hint && !error"
+      :id="hintId"
+      class="app-field__hint"
+    >
+      {{ hint }}
+    </p>
 
     <!-- Bloq Mayús. Es la causa número uno de "mi contraseña no anda" y el
          navegador no la reporta en ningún lado cuando el campo está oculto.
@@ -127,6 +138,12 @@ const props = defineProps({
     default: ''
   },
 
+  // Leyenda corta debajo del campo: qué se registra ahí.
+  hint: {
+    type: String,
+    default: ''
+  },
+
   // 'lg' es para pantallas donde el formulario ES la pantalla (el acceso).
   // En una tabla o un diálogo el campo va en 'md', que es el alto del resto
   // del sistema.
@@ -150,6 +167,7 @@ const fieldId = useId()
 // wrapper, el lector de pantalla anunciaba "Contraseña Mostrar contraseña".
 // aria-labelledby gana sobre los <label> y deja el nombre limpio.
 const labelId = `${fieldId}-label`
+const hintId = `${fieldId}-hint`
 
 const revealed = ref(false)
 const revealable = computed(() => props.type === 'password')
@@ -253,6 +271,13 @@ function checkCapsLock (event) {
   :deep(.q-field__messages) {
     color: var(--app-ink-negative);
   }
+}
+
+.app-field__hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--app-ink-2);
 }
 
 // Aviso, no error: el amarillo sale del mismo mapa de estados que los chips,

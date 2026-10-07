@@ -57,12 +57,13 @@
           <p class="ficha-pos__meta">
             {{ [ficha.marca?.nombre, ficha.categoria?.nombre].filter(Boolean).join(' · ') }}
           </p>
-          <p
+          <!-- HTML limpio en el backend (App\Support\HtmlSeguro: lista blanca). -->
+          <!-- eslint-disable-next-line vue/no-v-html -->
+          <div
             v-if="ficha.descripcion"
             class="ficha-pos__descripcion"
-          >
-            {{ ficha.descripcion }}
-          </p>
+            v-html="ficha.descripcion"
+          />
           <p
             v-else
             class="ficha-pos__descripcion ficha-pos__descripcion--vacia"
@@ -312,6 +313,27 @@ defineExpose({ abrir })
 
 .ficha-pos__descripcion {
   margin: 0 0 14px;
+
+  :deep(p),
+  :deep(ul),
+  :deep(ol),
+  :deep(h3),
+  :deep(h4) {
+    margin: 0 0 6px;
+  }
+
+  :deep(h3),
+  :deep(h4) {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  :deep(ul),
+  :deep(ol) {
+    padding-left: 20px;
+  }
+
   font-size: 14px;
   line-height: 1.55;
   color: var(--app-ink);

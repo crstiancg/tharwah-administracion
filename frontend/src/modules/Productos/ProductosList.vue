@@ -324,7 +324,7 @@ const filtroTabla = computed(() => JSON.stringify({
 const tableRef = ref()
 const rows = ref([])
 const loading = ref(false)
-const pagination = ref({ sortBy: 'nombre', descending: false, page: 1, rowsPerPage: 10, rowsNumber: 0 })
+const pagination = ref({ sortBy: 'id', descending: true, page: 1, rowsPerPage: 10, rowsNumber: 0 })
 
 async function onRequest ({ pagination: requested }) {
   const { page, rowsPerPage, sortBy, descending } = requested

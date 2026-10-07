@@ -38,6 +38,45 @@
       </div>
     </div>
 
+    <!-- ── Ventas del turno (sólo quien puede ver costos) ── -->
+    <section
+      v-if="caja.ventas_turno"
+      class="caja-resumen__ventas"
+    >
+      <h3 class="caja-resumen__titulo">
+        Ventas del turno
+        <span class="caja-resumen__detalle">
+          · confirmadas mientras la caja estuvo abierta (no es lo cobrado: un adelanto no es venta)
+        </span>
+      </h3>
+      <div class="caja-resumen__tiles">
+        <div class="caja-resumen__tile">
+          <span class="caja-resumen__tileLabel">Vendido ({{ caja.ventas_turno.ventas }} {{ caja.ventas_turno.ventas === 1 ? 'venta' : 'ventas' }})</span>
+          <strong class="text-mono">{{ formatearPrecio(caja.ventas_turno.total) }}</strong>
+        </div>
+        <div class="caja-resumen__tile">
+          <span class="caja-resumen__tileLabel">Costo de lo vendido</span>
+          <strong class="text-mono">{{ formatearPrecio(caja.ventas_turno.costo) }}</strong>
+        </div>
+        <div :class="['caja-resumen__tile', 'caja-resumen__tile--destacado', { 'caja-resumen__tile--perdida': caja.ventas_turno.ganancia < 0 }]">
+          <span class="caja-resumen__tileLabel">
+            Ganancia<template v-if="caja.ventas_turno.margen !== null"> · {{ caja.ventas_turno.margen }}% de margen</template>
+          </span>
+          <strong class="text-mono">{{ formatearPrecio(caja.ventas_turno.ganancia) }}</strong>
+        </div>
+        <div class="caja-resumen__tile">
+          <span class="caja-resumen__tileLabel">IGV incluido</span>
+          <strong class="text-mono">{{ formatearPrecio(caja.ventas_turno.igv) }}</strong>
+        </div>
+      </div>
+      <p
+        v-if="caja.ventas_turno.items_sin_costo"
+        class="caja-resumen__detalle"
+      >
+        {{ caja.ventas_turno.items_sin_costo }} ítems vendidos no tenían costo (entraron por un ajuste): la ganancia no los descuenta.
+      </p>
+    </section>
+
     <!-- ── Por método ── -->
     <section>
       <h3 class="caja-resumen__titulo">
@@ -209,6 +248,16 @@ const textoDiferencia = computed(() => {
   &--faltante {
     background: rgba($negative, 0.1);
   }
+}
+
+.caja-resumen__ventas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.caja-resumen__tile--perdida strong {
+  color: var(--q-negative);
 }
 
 .caja-resumen__titulo {

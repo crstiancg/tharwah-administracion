@@ -14,6 +14,7 @@ use App\Services\Cajas;
 use App\Services\Pedidos;
 use App\Services\Precios;
 use App\Support\Fechas;
+use App\Support\HtmlSeguro;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -66,7 +67,8 @@ class VentaController extends Controller
         return response()->json([
             'id' => $producto->id,
             'nombre' => $producto->nombre,
-            'descripcion' => $producto->descripcion,
+            // Limpio también al mostrar: lo cargado antes del editor no pasó por el filtro.
+            'descripcion' => HtmlSeguro::limpiar($producto->descripcion),
             'marca' => $producto->marca?->only(['id', 'nombre']),
             'categoria' => $producto->categoria?->only(['id', 'nombre']),
             'maneja_lotes' => (bool) $producto->maneja_lotes,

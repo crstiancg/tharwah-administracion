@@ -154,7 +154,8 @@ import { comprimirImagen, detectarTipoReal, problemaAlDecodificar } from '@/util
  * otra galería, y ésta puede desmontarse con la foto todavía en uso. Las
  * revoca el dueño del estado (el form) al cerrarse.
  */
-const TIPOS = ['image/jpeg', 'image/png', 'image/webp']
+// AVIF: pesa poco y conserva la calidad (navegadores y backend lo leen).
+const TIPOS = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']
 const MAX_BYTES = 4 * 1024 * 1024
 
 const props = defineProps({
@@ -251,10 +252,9 @@ async function agregar (event) {
 }
 
 function motivoTipo (tipo) {
-  if (tipo === 'image/avif') return 'es AVIF por dentro (aunque diga otra extensión). Guardala como JPG o PNG.'
   if (tipo === 'image/heic') return 'es HEIC (formato de iPhone). Exportala como JPG.'
-  if (tipo === 'image/gif') return 'los GIF no se aceptan. Usá JPG, PNG o WEBP.'
-  return 'no es una imagen JPG, PNG o WEBP válida.'
+  if (tipo === 'image/gif') return 'los GIF no se aceptan. Usá JPG, PNG, WEBP o AVIF.'
+  return 'no es una imagen JPG, PNG, WEBP o AVIF válida.'
 }
 
 // Si la extensión mentía ("foto.jpg" que es WebP), se corrige el tipo y la

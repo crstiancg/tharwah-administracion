@@ -7,6 +7,7 @@ use App\Models\Producto;
 use App\Models\Stock;
 use App\Models\Variante;
 use App\Support\Fechas;
+use App\Support\HtmlSeguro;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -41,8 +42,9 @@ class StoreProductoRequest extends FormRequest
             $producto['nombre'] = trim($producto['nombre']);
         }
 
-        if (($producto['descripcion'] ?? null) === '') {
-            $producto['descripcion'] = null;
+        // Viene del editor enriquecido: se guarda limpia (lista blanca).
+        if (array_key_exists('descripcion', $producto)) {
+            $producto['descripcion'] = is_string($producto['descripcion']) ? HtmlSeguro::limpiar($producto['descripcion']) : null;
         }
 
         // En multipart un booleano llega como texto.
@@ -113,14 +115,17 @@ class StoreProductoRequest extends FormRequest
             'producto.nombre' => ['required', 'string', 'max:120', $this->nombreUnico($producto)],
             'producto.categoria_id' => ['required', 'integer', 'exists:categorias,id'],
             'producto.marca_id' => ['required', 'integer', 'exists:marcas,id'],
-            'producto.descripcion' => ['nullable', 'string', 'max:1000'],
+            // HTML: el límite cuenta las etiquetas, por eso es más que el texto visible.
+            'producto.descripcion' => ['nullable', 'string', 'max:5000'],
             'producto.precio' => ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
             'producto.activo' => ['required', 'boolean'],
             'producto.maneja_lotes' => ['required', 'boolean', $this->lotesSinStock($producto)],
             'producto.variantes' => ['required', 'array', 'min:1', $this->noQuitaVariantesConStock($producto)],
             // Stock inicial de las variantes nuevas: el costo general de la
             // compra (ajustable por variante) y la factura o guía.
-            'producto.costo_compra' => ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
+            // Obligatorio (y > 0) si hay stock inicial sin costo propio: sin
+            // costo, toda la venta contaría como ganancia.
+            'producto.costo_compra' => [Rule::requiredIf(fn () => $this->faltaCostoGeneral()), 'nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2', $this->costoCompraValido()],
             'producto.referencia_compra' => ['nullable', 'string', 'max:60'],
             ...$this->reglasArchivos('producto.archivos'),
         ];
@@ -183,7 +188,7 @@ class StoreProductoRequest extends FormRequest
             $rules["{$ruta}.{$j}.id"] = ['nullable', 'integer', $this->archivoDelProducto()];
             $rules["{$ruta}.{$j}.archivo"] = [
                 "required_without:{$ruta}.{$j}.id",
-                'nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096',
+                'nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp,avif', 'max:4096',
             ];
         }
 
@@ -261,9 +266,34 @@ class StoreProductoRequest extends FormRequest
                 return;
             }
 
-            $costo = $this->input("producto.variantes.{$i}.costo_unitario") ?? $this->input('producto.costo_compra');
-            if ($costo === null || $costo === '') {
-                $fail('Falta el costo de compra de estas unidades.');
+            // Sin costo general, el error ya sale en el campo de costo de compra
+            // (costoCompraValido): acá sólo el costo propio de la fila en 0.
+            $propio = $this->input("producto.variantes.{$i}.costo_unitario");
+            if ($propio !== null && $propio !== '' && (float) $propio <= 0) {
+                $fail('El costo de estas unidades tiene que ser mayor a 0.');
+            }
+        };
+    }
+
+    /**
+     * Con stock inicial, el costo general es obligatorio salvo que TODAS las
+     * presentaciones con stock tengan su costo propio.
+     */
+    private function faltaCostoGeneral(): bool
+    {
+        return collect((array) $this->input('producto.variantes', []))
+            ->filter(fn ($v) => empty($v['id']) && (float) ($v['stock_inicial'] ?? 0) > 0)
+            ->contains(fn ($v) => ($v['costo_unitario'] ?? null) === null || $v['costo_unitario'] === '');
+    }
+
+    /**
+     * Y si se usa, mayor a 0: con costo 0 toda la venta contaría como ganancia.
+     */
+    private function costoCompraValido(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) {
+            if ($this->faltaCostoGeneral() && (float) $value <= 0) {
+                $fail('El costo tiene que ser mayor a 0: con 0, toda la venta contaría como ganancia.');
             }
         };
     }
@@ -421,6 +451,7 @@ class StoreProductoRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'producto.costo_compra.required' => 'Poné cuánto te costó cada unidad: sin el costo no se puede calcular la ganancia.',
             'producto.variantes.required' => 'Agregá al menos una presentación.',
             'producto.variantes.min' => 'Agregá al menos una presentación.',
             'producto.variantes.*.sku.regex' => 'El SKU sólo puede tener letras, números y guiones.',
@@ -429,8 +460,8 @@ class StoreProductoRequest extends FormRequest
             'producto.variantes.*.archivos.max' => 'Máximo '.self::MAX_ARCHIVOS.' fotos por presentación.',
             'producto.archivos.*.archivo.max' => 'Cada foto puede pesar hasta 4 MB.',
             'producto.variantes.*.archivos.*.archivo.max' => 'Cada foto puede pesar hasta 4 MB.',
-            'producto.archivos.*.archivo.mimes' => 'Sólo fotos JPG, PNG o WEBP.',
-            'producto.variantes.*.archivos.*.archivo.mimes' => 'Sólo fotos JPG, PNG o WEBP.',
+            'producto.archivos.*.archivo.mimes' => 'Sólo fotos JPG, PNG, WEBP o AVIF.',
+            'producto.variantes.*.archivos.*.archivo.mimes' => 'Sólo fotos JPG, PNG, WEBP o AVIF.',
         ];
     }
 

@@ -68,6 +68,18 @@ export async function problemaAlDecodificar (archivo) {
  * @param {File} archivo
  * @returns {Promise<File>}
  */
+/**
+ * - PNG grande → WebP (conserva la transparencia).
+ * - AVIF → WebP: el canvas del navegador no sabe GUARDAR AVIF (lo pasaría a
+ *   PNG, que pesa diez veces más). Con `strict`, si el WebP pesa más que el
+ *   AVIF original (lo normal: AVIF comprime mejor), se queda el AVIF.
+ */
+function formatoSalida (archivo) {
+  if (archivo.type === 'image/avif') return 'image/webp'
+  if (archivo.type === 'image/png' && archivo.size > PNG_GRANDE) return 'image/webp'
+  return 'auto'
+}
+
 export function comprimirImagen (archivo) {
   return new Promise((resolve, reject) => {
     // eslint-disable-next-line no-new
@@ -75,7 +87,7 @@ export function comprimirImagen (archivo) {
       maxWidth: LADO_MAXIMO,
       maxHeight: LADO_MAXIMO,
       quality: CALIDAD,
-      mimeType: archivo.type === 'image/png' && archivo.size > PNG_GRANDE ? 'image/webp' : 'auto',
+      mimeType: formatoSalida(archivo),
       // Sin esto, un PNG > 5 MB se convierte a JPEG y pierde la transparencia.
       convertSize: Infinity,
       success (resultado) {

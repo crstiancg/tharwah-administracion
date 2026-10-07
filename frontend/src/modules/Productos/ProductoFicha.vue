@@ -192,6 +192,20 @@
                 <th class="text-right">
                   Precio
                 </th>
+                <template v-if="veCostos">
+                  <th class="text-right">
+                    Costo
+                    <q-icon
+                      name="help_outline"
+                      size="14px"
+                    >
+                      <q-tooltip>Costo promedio de lo que entró (compras, entradas, alta del producto).</q-tooltip>
+                    </q-icon>
+                  </th>
+                  <th class="text-right">
+                    Ganancia c/u
+                  </th>
+                </template>
                 <th class="text-right">
                   En tu sede
                 </th>
@@ -236,6 +250,24 @@
                 <td class="text-right text-mono">
                   {{ formatearPrecio(v.precioSede) }}
                 </td>
+                <template v-if="veCostos">
+                  <td class="text-right text-mono">
+                    {{ v.costo_promedio !== null ? formatearPrecio(v.costo_promedio) : '—' }}
+                  </td>
+                  <td
+                    v-if="v.ganancia !== null"
+                    :class="['text-right', 'text-mono', v.ganancia > 0 ? 'ficha__mas' : 'ficha__menos']"
+                  >
+                    {{ formatearPrecio(v.ganancia) }}
+                    <span class="ficha__margen">{{ v.margen }}%</span>
+                  </td>
+                  <td
+                    v-else
+                    class="text-right ficha__detalle"
+                  >
+                    Sin costo
+                  </td>
+                </template>
                 <td class="text-right text-mono ficha__fuerte">
                   {{ formatearCantidad(v.sede?.cantidad ?? 0) }}
                 </td>
@@ -549,11 +581,24 @@ const presentaciones = computed(() => (producto.value?.variantes ?? []).map((v) 
     ...v,
     sede,
     precioSede: sede?.precio ?? v.precio ?? producto.value.precio,
+    ...ganancia(sede?.precio ?? v.precio ?? producto.value.precio, v.costo_promedio),
     bajoMinimo: minimo > 0 && cantidad < minimo
   }
 }))
 
 const stockSede = computed(() => presentaciones.value.reduce((s, v) => s + Number(v.sede?.cantidad ?? 0), 0))
+// El backend manda el costo sólo a quien puede verlo.
+const veCostos = computed(() => (producto.value?.variantes ?? []).some((v) => 'costo_promedio' in v))
+
+// Ganancia por unidad y margen sobre el precio (ambos con IGV incluido).
+// null = todavía no hay costo (nunca entró mercadería con costo).
+function ganancia (precio, costo) {
+  if (costo === null || costo === undefined) return { ganancia: null, margen: null }
+  const p = Number(precio)
+  const g = Math.round((p - Number(costo)) * 100) / 100
+  return { ganancia: g, margen: p > 0 ? Math.round((g / p) * 1000) / 10 : 0 }
+}
+
 const stockEmpresa = computed(() => presentaciones.value.reduce((s, v) => s + Number(v.stock ?? 0), 0))
 
 // ── Saltar a otro producto ──
@@ -928,6 +973,13 @@ onMounted(async () => {
   height: 14px;
   border: 1px solid var(--app-border-subtle);
   border-radius: 4px;
+}
+
+.ficha__margen {
+  margin-left: 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  opacity: 0.85;
 }
 
 .ficha__fuerte {

@@ -12,6 +12,7 @@
         icon="inventory_2"
         placeholder="Sikaflex 1A Plus"
         maxlength="120"
+        hint="Nombre comercial, como lo busca el vendedor. Sin la presentación (bolsa, galón…): eso va abajo."
         class="producto-form__grow"
         :error="form.errors[`${PATH}.nombre`]"
         autofocus
@@ -59,6 +60,9 @@
             </q-item>
           </template>
         </q-select>
+        <p class="producto-form__hint">
+          Agrupa el catálogo: el POS y los reportes filtran por acá.
+        </p>
       </div>
     </div>
 
@@ -92,16 +96,20 @@
             />
           </template>
         </q-select>
+        <p class="producto-form__hint">
+          El fabricante (Sika, Z Aditivos…).
+        </p>
       </div>
 
       <AppTextField
         v-model="form.producto.precio"
-        label="Precio base"
+        label="Precio base (S/)"
         icon="sell"
         type="number"
         min="0"
         step="0.01"
         placeholder="0.00"
+        hint="Precio de venta al público, con IGV. Lo usan las presentaciones que no tengan precio propio."
         class="producto-form__precio"
         :error="form.errors[`${PATH}.precio`]"
         @change="form.validate(`${PATH}.precio`)"
@@ -130,6 +138,11 @@
       </q-toggle>
     </div>
 
+    <ul class="producto-form__leyenda">
+      <li><strong>Activo:</strong> apagado, el producto no aparece en el punto de venta ni en los buscadores (no se borra).</li>
+      <li><strong>Maneja lotes y vencimiento:</strong> para productos que vencen. Cada entrada de mercadería pide n° de lote y fecha de vencimiento, y las ventas sacan primero lo que vence antes.</li>
+    </ul>
+
     <p
       v-if="form.errors[`${PATH}.maneja_lotes`]"
       class="producto-form__error"
@@ -138,15 +151,38 @@
       {{ form.errors[`${PATH}.maneja_lotes`] }}
     </p>
 
-    <AppTextField
-      v-model="form.producto.descripcion"
-      label="Descripción (opcional)"
-      type="textarea"
-      autogrow
-      maxlength="1000"
-      :error="form.errors[`${PATH}.descripcion`]"
-      @change="form.validate(`${PATH}.descripcion`)"
-    />
+    <!-- Texto enriquecido (QEditor). El backend guarda el HTML limpio
+         (App\Support\HtmlSeguro) y el POS lo muestra tal cual. -->
+    <div class="producto-form__field">
+      <span
+        :id="`${uid}-descripcion`"
+        class="producto-form__label"
+      >Descripción (opcional)</span>
+      <q-editor
+        v-model="form.producto.descripcion"
+        :toolbar="BARRA_EDITOR"
+        :definitions="TEXTOS_EDITOR"
+        :aria-labelledby="`${uid}-descripcion`"
+        placeholder="Usos, rendimiento por m², tiempo de secado, recomendaciones…"
+        min-height="7rem"
+        max-height="18rem"
+        :class="['producto-form__editor', { 'producto-form__editor--error': form.errors[`${PATH}.descripcion`] }]"
+        @blur="form.validate(`${PATH}.descripcion`)"
+      />
+      <p
+        v-if="form.errors[`${PATH}.descripcion`]"
+        class="producto-form__error"
+        role="alert"
+      >
+        {{ form.errors[`${PATH}.descripcion`] }}
+      </p>
+      <p
+        v-else
+        class="producto-form__hint"
+      >
+        Usos, rendimiento, recomendaciones. El vendedor la ve en la ficha del producto en el punto de venta.
+      </p>
+    </div>
 
     <div class="producto-form__field">
       <span class="producto-form__label">Fotos del producto</span>
@@ -169,7 +205,7 @@
             <span class="producto-form__count">{{ form.producto.variantes.length }}</span>
           </h3>
           <p class="producto-form__hint">
-            Cada presentación (cartucho, galón, balde, bolsa…) tiene su SKU, su precio, sus fotos y su stock. El color es opcional.
+            Las formas en que se vende el producto: cada una tiene su código, su precio, sus fotos y su propio stock.
           </p>
         </div>
         <AppButton
@@ -187,6 +223,31 @@
         {{ form.errors[`${PATH}.variantes`] }}
       </p>
 
+      <dl
+        v-if="form.producto.variantes.length"
+        class="producto-form__columnas"
+      >
+        <dt>Presentación</dt>
+        <dd>Cómo se vende: “Bolsa 25 kg”, “Galón 4 L”, “Cartucho 300 ml”.</dd>
+        <dt>Unidad</dt>
+        <dd>En qué se cuenta el stock. Si la unidad acepta decimales (kg, metro) se puede vender 2.5.</dd>
+        <dt>Color</dt>
+        <dd>Opcional: sólo si la presentación viene en colores.</dd>
+        <dt>SKU</dt>
+        <dd>Código interno; se arma solo con el nombre, la presentación y el color. Podés cambiarlo.</dd>
+        <dt>Precio</dt>
+        <dd>De venta de esta presentación, con IGV. Vacío = usa el precio base.</dd>
+        <dt>Fotos</dt>
+        <dd>De esta presentación; si no tiene, se muestran las del producto.</dd>
+        <dt>{{ hayNuevas ? 'Stock inicial' : 'Stock' }}</dt>
+        <dd v-if="hayNuevas">
+          Unidades que ya tenés hoy en {{ userStore.sede?.nombre ?? 'tu sede' }} (sólo al crear la presentación). Si no tenés, dejalo vacío.
+        </dd>
+        <dd v-else>
+          Lo que hay hoy (pasá el mouse para ver cada sede). Se mueve desde Inventario, no desde acá.
+        </dd>
+      </dl>
+
       <div
         v-if="form.producto.variantes.length"
         class="producto-form__tablaWrap"
@@ -199,7 +260,7 @@
             <span>SKU</span>
             <span>Precio</span>
             <span>Fotos</span>
-            <span class="text-right">{{ hayNuevas ? 'Stock / inicial' : 'Stock' }}</span>
+            <span class="text-right">{{ hayNuevas ? 'Stock inicial' : 'Stock' }}</span>
             <span />
           </div>
 
@@ -360,7 +421,8 @@
               </button>
 
               <!-- Existente: su stock real (se mueve desde Inventario). Nueva:
-                   las unidades con que entra y, si difiere, su costo. -->
+                   las unidades con que entra (su costo, lote y vencimiento se
+                   completan en "Stock inicial", debajo). -->
               <span
                 v-if="variante.id"
                 class="producto-form__stock text-mono"
@@ -393,23 +455,6 @@
                   :error="Boolean(errorDe(i, 'stock_inicial'))"
                   class="producto-form__control"
                 />
-                <q-input
-                  v-if="Number(variante.stock_inicial) > 0"
-                  v-model="variante.costo_unitario"
-                  :aria-label="`Costo unitario de la presentación ${i + 1}`"
-                  :placeholder="form.producto.costo_compra || 'costo'"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  dense
-                  outlined
-                  hide-bottom-space
-                  no-error-icon
-                  :error="Boolean(errorDe(i, 'costo_unitario'))"
-                  class="producto-form__control producto-form__costo"
-                >
-                  <q-tooltip>Costo propio (vacío = el costo de compra general)</q-tooltip>
-                </q-input>
               </div>
 
               <!-- Con stock o con historial de inventario no se quita: se
@@ -433,10 +478,10 @@
             </div>
 
             <p
-              v-if="errorDe(i, 'stock_inicial') || errorDe(i, 'costo_unitario')"
+              v-if="errorDe(i, 'stock_inicial')"
               class="producto-form__error"
             >
-              {{ errorDe(i, 'stock_inicial') || errorDe(i, 'costo_unitario') }}
+              {{ errorDe(i, 'stock_inicial') }}
             </p>
 
             <div
@@ -471,10 +516,13 @@
             size="16px"
           />
           Venta por sede
-          <span class="producto-form__hint">
-            Qué sedes venden cada presentación, a qué precio (vacío = el general) y desde qué stock avisar para reponer.
-          </span>
         </div>
+        <ul class="producto-form__leyenda">
+          <li><strong>Casilla:</strong> marcada = esa sede vende la presentación (aparece en su punto de venta).</li>
+          <li><strong>Precio:</strong> sólo si esa sede la vende a otro precio. Vacío = el precio de la presentación (o el base).</li>
+          <li><strong>Stock mín.:</strong> cuando el stock de la sede baje de este número, aparece en “Por reponer” y en las alertas. 0 = no avisar.</li>
+          <li><strong>Stock:</strong> lo que hay hoy en esa sede (sólo lectura).</li>
+        </ul>
 
         <div
           v-for="sede in sedes"
@@ -572,17 +620,22 @@
             size="16px"
           />
           Stock inicial de las presentaciones nuevas
-          <span class="producto-form__hint">(entra al inventario de {{ userStore.sede?.nombre ?? 'tu sede' }} como "Alta de producto")</span>
         </div>
+        <p class="producto-form__hint">
+          Sólo si ya tenés mercadería de este producto: entra al inventario de
+          {{ userStore.sede?.nombre ?? 'tu sede' }} como “Alta de producto”. Si todavía no tenés,
+          dejá las cantidades vacías y cargala después con una compra o una entrada.
+        </p>
         <div class="producto-form__row">
           <AppTextField
             v-model="form.producto.costo_compra"
-            label="Costo de compra por unidad (S/)"
+            :label="unidadesIniciales ? 'Costo de compra por unidad (S/) — obligatorio' : 'Costo de compra por unidad (S/)'"
             icon="payments"
             type="number"
             min="0"
             step="0.01"
             placeholder="0.00"
+            hint="Cuánto te costó cada unidad al proveedor, con IGV. NO es el precio de venta: sirve para calcular la ganancia. Vale para todas las presentaciones, salvo que abajo les pongas otro."
             class="producto-form__grow"
             :error="form.errors[`${PATH}.costo_compra`]"
           />
@@ -592,6 +645,7 @@
             icon="receipt"
             maxlength="60"
             placeholder="F001-2345"
+            hint="El documento con el que entró la mercadería, para encontrarlo en el historial."
             class="producto-form__grow"
             :error="form.errors[`${PATH}.referencia_compra`]"
           />
@@ -627,16 +681,19 @@
           </span>
         </div>
 
-        <!-- Con lotes: cada presentación con stock inicial dice a qué lote
-             entra y cuándo vence (lo mismo que pide una entrada). -->
+        <!-- Una fila por presentación con stock inicial: su costo (si difiere
+             del general) y, con lotes, a qué lote entra y cuándo vence. -->
         <div
-          v-if="form.producto.maneja_lotes && conStockInicial.length"
-          class="producto-form__lotes"
+          v-if="conStockInicial.length"
+          :class="['producto-form__lotes', { 'producto-form__lotes--conLote': form.producto.maneja_lotes }]"
         >
           <div class="producto-form__lotesCabecera">
             <span>Presentación</span>
-            <span>Lote</span>
-            <span>Vence</span>
+            <span>Costo c/u (opcional)</span>
+            <template v-if="form.producto.maneja_lotes">
+              <span>N° de lote</span>
+              <span>Vence</span>
+            </template>
           </div>
           <div
             v-for="{ variante, i } in conStockInicial"
@@ -647,6 +704,22 @@
               {{ etiquetaDe(variante) }}
               <span class="producto-form__hint">· {{ variante.stock_inicial }} unid.</span>
             </span>
+            <q-input
+              v-model="variante.costo_unitario"
+              :aria-label="`Costo unitario de ${etiquetaDe(variante)}`"
+              :placeholder="form.producto.costo_compra ? `${form.producto.costo_compra} (general)` : 'S/ 0.00'"
+              type="number"
+              min="0"
+              step="0.01"
+              dense
+              outlined
+              hide-bottom-space
+              no-error-icon
+              :error="Boolean(errorDe(i, 'costo_unitario'))"
+              :error-message="errorDe(i, 'costo_unitario')"
+              class="producto-form__control"
+            />
+            <template v-if="form.producto.maneja_lotes">
             <q-input
               v-model="variante.lote"
               :aria-label="`Lote de ${etiquetaDe(variante)}`"
@@ -673,7 +746,14 @@
               :error-message="errorDe(i, 'vence_at')"
               class="producto-form__control"
             />
+            </template>
           </div>
+          <p class="producto-form__hint">
+            Costo c/u: sólo si esa presentación costó distinto que el costo general de arriba.
+            <template v-if="form.producto.maneja_lotes">
+              Lote y vencimiento: los que figuran en el envase o en la guía del proveedor.
+            </template>
+          </p>
         </div>
       </div>
 
@@ -712,6 +792,42 @@ import formProducto, { nuevaVariante } from './FormProducto'
 import { sugerirSku } from './sku'
 
 const PATH = 'producto'
+
+// ── Editor de la descripción ──
+// Sólo lo que deja pasar App\Support\HtmlSeguro del backend.
+const BARRA_EDITOR = [
+  ['bold', 'italic', 'underline', 'strike'],
+  ['unordered', 'ordered'],
+  [{ label: 'Formato', icon: 'title', list: 'no-icons', options: ['p', 'h3', 'h4'] }],
+  ['link', 'removeFormat'],
+  ['undo', 'redo']
+]
+
+// Quasar viene en inglés: los tooltips de la barra, en castellano.
+const TEXTOS_EDITOR = {
+  bold: { tip: 'Negrita' },
+  italic: { tip: 'Cursiva' },
+  underline: { tip: 'Subrayado' },
+  strike: { tip: 'Tachado' },
+  unordered: { tip: 'Lista con viñetas' },
+  ordered: { tip: 'Lista numerada' },
+  p: { label: 'Párrafo' },
+  h3: { label: 'Título' },
+  h4: { label: 'Subtítulo' },
+  link: { tip: 'Enlace' },
+  removeFormat: { tip: 'Quitar formato' },
+  undo: { tip: 'Deshacer' },
+  redo: { tip: 'Rehacer' }
+}
+
+// Las descripciones cargadas antes del editor son texto plano: los saltos de
+// línea pasan a <br> para que no se peguen en un solo renglón.
+function aHtml (texto) {
+  if (!texto) return ''
+  if (/<[a-z][\s\S]*>/i.test(texto)) return texto
+  const escapar = { '&': '&amp;', '<': '&lt;', '>': '&gt;' }
+  return texto.replace(/[&<>]/g, (c) => escapar[c]).replace(/\n/g, '<br>')
+}
 
 const props = defineProps({
   // null = crear; con id = editar.
@@ -967,7 +1083,7 @@ onMounted(async () => {
       nombre,
       categoria_id: categoriaId,
       marca_id: marcaId,
-      descripcion: descripcion ?? '',
+      descripcion: aHtml(descripcion),
       precio: String(precio),
       activo,
       maneja_lotes: manejaLotes,
@@ -1119,6 +1235,63 @@ defineExpose({ form, submit })
   color: var(--app-ink-2);
 }
 
+.producto-form__editor {
+  border-color: var(--app-border-control);
+  border-radius: 8px;
+  background: var(--app-surface);
+
+  :deep(.q-editor__toolbar) {
+    border-bottom-color: var(--app-border-subtle);
+  }
+
+  :deep(.q-editor__content) {
+    font-size: 14px;
+    line-height: 1.55;
+  }
+
+  &--error {
+    border-color: var(--q-negative);
+  }
+}
+
+.producto-form__leyenda {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--app-ink-2);
+
+  strong {
+    font-weight: 600;
+    color: var(--app-ink);
+  }
+}
+
+.producto-form__columnas {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 3px 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--app-page);
+  font-size: 12px;
+  line-height: 1.45;
+
+  dt {
+    font-weight: 600;
+    color: var(--app-ink);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--app-ink-2);
+  }
+}
+
 .producto-form__hint,
 .producto-form__vacio {
   margin: 4px 0 0;
@@ -1182,10 +1355,6 @@ defineExpose({ form, submit })
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.producto-form__costo :deep(input) {
-  font-size: 11.5px;
 }
 
 .producto-form__sedes {
@@ -1270,9 +1439,13 @@ defineExpose({ form, submit })
 .producto-form__lotesCabecera,
 .producto-form__loteFila {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 170px;
+  grid-template-columns: minmax(0, 1.4fr) 150px;
   align-items: center;
   gap: 10px;
+
+  .producto-form__lotes--conLote & {
+    grid-template-columns: minmax(0, 1.4fr) 150px minmax(0, 1fr) 170px;
+  }
 }
 
 .producto-form__lotesCabecera {
@@ -1292,7 +1465,8 @@ defineExpose({ form, submit })
     display: none;
   }
 
-  .producto-form__loteFila {
+  .producto-form__loteFila,
+  .producto-form__lotes--conLote .producto-form__loteFila {
     grid-template-columns: 1fr 1fr;
 
     .producto-form__loteNombre {
