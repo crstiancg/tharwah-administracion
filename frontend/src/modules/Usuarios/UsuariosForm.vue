@@ -158,14 +158,14 @@
               v-for="permiso in rol.permissions"
               :key="permiso.id"
               :class="['usuario-heredados__permiso', { 'usuario-heredados__permiso--directo': form.usuario.permisosSelected.includes(permiso.id) }]"
-              :title="permiso.description"
+              :title="permiso.name"
             >
               <q-icon
                 v-if="form.usuario.permisosSelected.includes(permiso.id)"
                 name="check"
                 size="14px"
               />
-              {{ permiso.name }}
+              {{ permiso.descripcion }}
             </span>
 
             <span
@@ -234,9 +234,18 @@ const opcionesSedes = computed(() => sedes.value
 // Los permisos que el usuario recibe por sus roles. Sólo lectura: un permiso
 // heredado se quita desde el rol, no desde acá.
 const heredados = computed(() => {
+  // La descripción ("Pedidos · Cobrar") y no el nombre técnico de la ruta
+  // (pedidos.pagos): es lo que entiende quien arma el usuario. Si el rol no
+  // la trae, sale del catálogo de permisos.
+  const descripcionPorId = new Map(permisos.value.map((p) => [p.id, p.description]))
   const seleccionados = roles.value
     .filter((rol) => form.usuario.rolesSelected.includes(rol.id))
-    .map((rol) => ({ ...rol, permissions: rol.permissions ?? [] }))
+    .map((rol) => ({
+      ...rol,
+      permissions: (rol.permissions ?? [])
+        .map((p) => ({ ...p, descripcion: p.description || descripcionPorId.get(p.id) || p.name }))
+        .sort((a, b) => a.descripcion.localeCompare(b.descripcion, 'es'))
+    }))
 
   const unicos = new Set(seleccionados.flatMap((rol) => rol.permissions.map((p) => p.id)))
 
