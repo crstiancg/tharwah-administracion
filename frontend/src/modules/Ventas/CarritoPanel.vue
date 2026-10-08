@@ -65,6 +65,18 @@
             </q-list>
           </q-menu>
         </q-btn>
+        <!-- En el celular el carrito tapa toda la pantalla: sin esto no
+             había cómo volver al catálogo. -->
+        <q-btn
+          v-if="cerrable"
+          flat
+          dense
+          round
+          icon="close"
+          aria-label="Cerrar la venta actual y volver al catálogo"
+          class="carrito__cerrar"
+          @click="emit('cerrar')"
+        />
       </div>
     </header>
 
@@ -488,10 +500,16 @@ defineProps({
   flashTick: {
     type: Boolean,
     default: false
+  },
+  // En pantallas chicas el carrito es un panel encima del catálogo: muestra
+  // el botón para cerrarlo.
+  cerrable: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['vendido'])
+const emit = defineEmits(['vendido', 'cerrar'])
 
 const $q = useQuasar()
 const pos = usePosStore()
@@ -711,7 +729,13 @@ defineExpose({ cobrar, enfocarCliente })
 
 .carrito__espera {
   display: flex;
+  align-items: center;
   gap: 2px;
+}
+
+.carrito__cerrar {
+  margin-left: 4px;
+  color: var(--app-ink-2);
 }
 
 .carrito__esperaLista {

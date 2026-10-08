@@ -156,7 +156,9 @@
         ref="carritoRef"
         :flash-id="flashId"
         :flash-tick="flashTick"
+        :cerrable="esMovil"
         @vendido="vendido"
+        @cerrar="carritoAbierto = false"
       />
     </div>
 
