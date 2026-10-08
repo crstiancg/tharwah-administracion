@@ -40,6 +40,13 @@ class PedidoResource extends JsonResource
             'pagado' => $this->when(($pagado = $this->pagadoCargado()) !== null, fn () => number_format($pagado, 2, '.', '')),
             'saldo' => $this->when($pagado !== null, fn () => number_format((float) $this->total - $pagado, 2, '.', '')),
             'pagos' => PagoResource::collection($this->whenLoaded('pagos')),
+            // El comprobante electrónico que vale (o el último, si todos se
+            // rechazaron): null = sólo ticket.
+            'comprobante' => $this->whenLoaded('comprobantes', function () {
+                $comprobante = $this->resource->comprobanteVigente() ?? $this->comprobantes->first();
+
+                return $comprobante ? (new ComprobanteResource($comprobante))->resolve(request()) : null;
+            }),
             'observacion' => $this->observacion,
             'items_count' => $this->whenCounted('items'),
             'items' => PedidoItemResource::collection($this->whenLoaded('items')),

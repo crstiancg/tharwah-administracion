@@ -6,6 +6,7 @@ use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\ColorController;
 use App\Http\Controllers\CompraController;
+use App\Http\Controllers\ComprobanteController;
 use App\Http\Controllers\CotizacionController;
 use App\Http\Controllers\EtiquetaController;
 use App\Http\Controllers\InventarioController;
@@ -21,8 +22,8 @@ use App\Http\Controllers\ReporteController;
 use App\Http\Controllers\RolController;
 use App\Http\Controllers\SedeController;
 use App\Http\Controllers\UnidadController;
-use App\Http\Controllers\VentaController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\VentaController;
 use App\Http\Middleware\AutorizarPorRuta;
 use Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 use Illuminate\Support\Facades\Route;
@@ -104,6 +105,13 @@ Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
     Route::post('ventas', [VentaController::class, 'store'])->name('ventas.store');
     Route::get('ventas/catalogo', [VentaController::class, 'catalogo'])->name('ventas.catalogo');
     Route::get('ventas/catalogo/{producto}', [VentaController::class, 'ficha'])->name('ventas.ficha');
+
+    // Facturación electrónica (SUNAT): boletas y facturas de los pedidos.
+    Route::get('comprobantes', [ComprobanteController::class, 'index'])->name('comprobantes.index');
+    Route::post('pedidos/{pedido}/comprobantes', [ComprobanteController::class, 'store'])->name('comprobantes.store');
+    Route::post('comprobantes/{comprobante}/reenviar', [ComprobanteController::class, 'reenviar'])->name('comprobantes.reenviar');
+    Route::get('comprobantes/{comprobante}/xml', [ComprobanteController::class, 'xml'])->name('comprobantes.xml');
+    Route::get('comprobantes/{comprobante}/cdr', [ComprobanteController::class, 'cdr'])->name('comprobantes.cdr');
 
     // "actual" va antes de {caja}: si no, la captura como id.
     Route::get('cajas/actual', [CajaController::class, 'actual'])->name('cajas.actual');

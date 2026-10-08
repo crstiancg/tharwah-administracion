@@ -9,6 +9,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['nombre', 'direccion', 'telefono', 'activo'])]
 class Sede extends Model
 {
+    /**
+     * Cada sede nueva nace con su serie de boleta y de factura.
+     */
+    protected static function booted(): void
+    {
+        static::created(fn (Sede $sede) => ComprobanteSerie::crearPara($sede));
+    }
+
     protected function casts(): array
     {
         return [
@@ -19,6 +27,11 @@ class Sede extends Model
     public function stocks(): HasMany
     {
         return $this->hasMany(Stock::class);
+    }
+
+    public function seriesComprobante(): HasMany
+    {
+        return $this->hasMany(ComprobanteSerie::class);
     }
 
     public function usuarios(): HasMany

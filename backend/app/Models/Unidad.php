@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['nombre', 'abreviatura', 'fraccionable'])]
+#[Fillable(['nombre', 'abreviatura', 'codigo_sunat', 'fraccionable'])]
 class Unidad extends Model
 {
     /**

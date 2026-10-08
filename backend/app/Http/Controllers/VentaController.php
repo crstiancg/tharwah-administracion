@@ -11,6 +11,7 @@ use App\Models\Pedido;
 use App\Models\PedidoItem;
 use App\Models\Producto;
 use App\Services\Cajas;
+use App\Services\Facturacion;
 use App\Services\Pedidos;
 use App\Services\Precios;
 use App\Support\Fechas;
@@ -31,7 +32,7 @@ use Illuminate\Validation\ValidationException;
  */
 class VentaController extends Controller
 {
-    public function __construct(private Pedidos $pedidos, private Cajas $cajas) {}
+    public function __construct(private Pedidos $pedidos, private Cajas $cajas, private Facturacion $facturacion) {}
 
     /**
      * Ficha de sólo lectura para el vendedor: lo que necesita para responderle
@@ -220,6 +221,17 @@ class VentaController extends Controller
             return $pedido;
         });
 
+        // Boleta o factura: DESPUÉS de la venta (fuera de su transacción). Si
+        // SUNAT no responde, la venta queda hecha y el comprobante en "error"
+        // para reenviarlo desde Pedidos.
+        if ($tipo = RegistrarVentaRequest::COMPROBANTES[$venta['comprobante'] ?? 'ticket'] ?? null) {
+            try {
+                $this->facturacion->emitir($pedido->refresh(), $tipo, $usuario);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
         return response()->json($this->conDetalle($pedido->refresh()), 201);
     }
 
@@ -251,6 +263,7 @@ class VentaController extends Controller
             'items.variante.color:id,nombre,hexadecimal',
             'pagos' => fn ($q) => $q->orderBy('id'),
             'pagos.usuario:id,name',
+            'comprobantes' => fn ($q) => $q->latest('id'),
         ]);
 
         return (new PedidoResource($pedido))->resolve(request());

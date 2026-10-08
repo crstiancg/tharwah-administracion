@@ -72,6 +72,17 @@ class Pedido extends Model
         return $this->belongsTo(Sede::class);
     }
 
+    public function comprobantes(): HasMany
+    {
+        return $this->hasMany(Comprobante::class);
+    }
+
+    /** El comprobante que vale (aceptado, o en camino); null = sólo ticket. */
+    public function comprobanteVigente(): ?Comprobante
+    {
+        return $this->comprobantes->first(fn (Comprobante $c) => $c->vigente());
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(PedidoItem::class);

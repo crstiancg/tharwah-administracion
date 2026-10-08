@@ -26,6 +26,30 @@
       @change="form.validate(`${PATH}.abreviatura`)"
     />
 
+    <div class="unidad-form__campo">
+      <span class="unidad-form__label">Código SUNAT</span>
+      <q-select
+        v-model="form.unidad.codigo_sunat"
+        :options="CODIGOS_SUNAT"
+        use-input
+        fill-input
+        hide-selected
+        new-value-mode="add-unique"
+        emit-value
+        map-options
+        input-debounce="0"
+        dense
+        outlined
+        hide-bottom-space
+        :error="Boolean(form.errors[`${PATH}.codigo_sunat`])"
+        :error-message="form.errors[`${PATH}.codigo_sunat`]"
+        aria-label="Código de unidad SUNAT"
+      />
+      <p class="unidad-form__hint">
+        El que va en las boletas y facturas electrónicas (catálogo 03 de SUNAT). Si no sabés, dejá NIU (unidad).
+      </p>
+    </div>
+
     <q-toggle
       v-model="form.unidad.fraccionable"
       label="Se vende en fracciones (kg, metros…)"
@@ -63,7 +87,27 @@ const props = defineProps({
 const emit = defineEmits(['save'])
 
 // Función y no objeto: useForm guarda estos datos como "originales" para el reset().
-const inicial = () => ({ unidad: { nombre: '', abreviatura: '', fraccionable: false } })
+const inicial = () => ({ unidad: { nombre: '', abreviatura: '', codigo_sunat: 'NIU', fraccionable: false } })
+
+// Los más comunes en materiales de construcción (catálogo 03 de SUNAT).
+const CODIGOS_SUNAT = [
+  { value: 'NIU', label: 'NIU · Unidad' },
+  { value: 'BG', label: 'BG · Bolsa / saco' },
+  { value: 'BJ', label: 'BJ · Balde' },
+  { value: 'GLL', label: 'GLL · Galón' },
+  { value: 'LTR', label: 'LTR · Litro' },
+  { value: 'KGM', label: 'KGM · Kilogramo' },
+  { value: 'TNE', label: 'TNE · Tonelada' },
+  { value: 'MTR', label: 'MTR · Metro' },
+  { value: 'MTK', label: 'MTK · Metro cuadrado' },
+  { value: 'MTQ', label: 'MTQ · Metro cúbico' },
+  { value: 'BX', label: 'BX · Caja' },
+  { value: 'CA', label: 'CA · Lata' },
+  { value: 'CY', label: 'CY · Cilindro' },
+  { value: 'RO', label: 'RO · Rollo' },
+  { value: 'KT', label: 'KT · Kit' },
+  { value: 'ZZ', label: 'ZZ · Servicio' }
+]
 
 const form = props.id
   ? useForm('put', `api/unidades/${props.id}`, inicial)
@@ -72,8 +116,8 @@ const form = props.id
 onMounted(async () => {
   if (!props.id) return
 
-  const { nombre, abreviatura, fraccionable } = await UnidadService.get(props.id)
-  form.setData({ [PATH]: { nombre, abreviatura, fraccionable } })
+  const { nombre, abreviatura, codigo_sunat: codigoSunat, fraccionable } = await UnidadService.get(props.id)
+  form.setData({ [PATH]: { nombre, abreviatura, codigo_sunat: codigoSunat ?? 'NIU', fraccionable } })
 })
 
 async function submit () {
@@ -90,6 +134,18 @@ defineExpose({ form, submit })
 </script>
 
 <style lang="scss" scoped>
+.unidad-form__campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.unidad-form__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-ink);
+}
+
 .unidad-form {
   display: flex;
   flex-direction: column;

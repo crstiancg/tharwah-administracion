@@ -104,6 +104,7 @@ class PedidoController extends Controller
             'items.variante.color:id,nombre,hexadecimal',
             'pagos' => fn ($q) => $q->orderBy('id'),
             'pagos.usuario:id,name',
+            'comprobantes' => fn ($q) => $q->latest('id'),
         ]);
 
         return (new PedidoResource($pedido))->resolve(request());

@@ -49,6 +49,11 @@
       </div>
     </section>
 
+    <ComprobanteBloque
+      :pedido="pedido"
+      @cambio="recargar"
+    />
+
     <table class="pedido-detalle__tabla">
       <thead>
         <tr>
@@ -217,6 +222,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import AppChip from '@/components/AppChip.vue'
+import ComprobanteBloque from '@/modules/Comprobantes/ComprobanteBloque.vue'
 import PedidoService from '@/services/PedidoService'
 import { formatearPrecio } from '@/utils/moneda'
 import { desgloseDe, ETIQUETA_IGV } from '@/utils/igv'
@@ -243,6 +249,11 @@ onMounted(async () => {
 // Las acciones las dispara la lista (dueña de los diálogos); acá se refresca.
 function actualizar (nuevo) {
   pedido.value = nuevo
+}
+
+// Tras emitir o reenviar el comprobante (lo hace el bloque, acá mismo).
+async function recargar () {
+  pedido.value = await PedidoService.get(props.id)
 }
 
 defineExpose({ pedido, actualizar })

@@ -61,6 +61,11 @@ return [
         'ventas.catalogo' => ['ventas.store'],
         // La ficha de sólo lectura del POS (el vendedor no administra productos).
         'ventas.ficha' => ['ventas.store'],
+        // Quien vende o cobra emite el comprobante y lo reenvía si no llegó.
+        'comprobantes.store' => ['ventas.store', 'pedidos.pagos'],
+        'comprobantes.reenviar' => ['ventas.store', 'pedidos.pagos'],
+        'comprobantes.xml' => ['comprobantes.index', 'pedidos.index'],
+        'comprobantes.cdr' => ['comprobantes.index', 'pedidos.index'],
         // Los formularios de inventario buscan la variante de cada línea.
         // Los formularios de pedidos buscan variantes y clientes.
         // La salida manual elige de qué lote sacar.
@@ -109,6 +114,7 @@ return [
         'pedidos' => 'Pedidos',
         'cajas' => 'Caja',
         'ventas' => 'Punto de venta',
+        'comprobantes' => 'Comprobantes electrónicos',
         'etiquetas' => 'Etiquetas',
     ],
 
@@ -141,6 +147,9 @@ return [
         'movimientos' => 'Registrar ingresos y egresos',
         'catalogo' => 'Ver catálogo',
         'ficha' => 'Ver ficha de producto',
+        'reenviar' => 'Reenviar a SUNAT',
+        'xml' => 'Descargar XML',
+        'cdr' => 'Descargar CDR (respuesta de SUNAT)',
         'imprimir' => 'Imprimir códigos de barras',
         'consultar-ruc' => 'Consultar RUC',
         'anular' => 'Anular',

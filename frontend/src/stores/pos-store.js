@@ -80,6 +80,9 @@ export const usePosStore = defineStore('pos', {
     items: [],
     cliente: null,
     descuento: '',
+    // ticket (sin comprobante SUNAT) | boleta | factura. Se recuerda entre
+    // ventas; la factura no (depende del cliente): vuelve a ticket.
+    comprobante: 'ticket',
     pagos: [nuevoPago()],
     // variante_id de la línea activa (para + / − / Supr desde el teclado).
     seleccionado: null,
@@ -203,6 +206,7 @@ export const usePosStore = defineStore('pos', {
     limpiar () {
       this.items = []
       this.cliente = null
+      if (this.comprobante === 'factura') this.comprobante = 'ticket'
       this.descuento = ''
       this.pagos = [nuevoPago()]
       this.seleccionado = null
@@ -250,6 +254,7 @@ export const usePosStore = defineStore('pos', {
         this.cliente = guardado.cliente ?? null
         this.descuento = guardado.descuento ?? ''
         this.espera = guardado.espera ?? []
+        this.comprobante = guardado.comprobante ?? 'ticket'
         this.pagos = [nuevoPago()]
         this.sincronizarPagoUnico()
       } catch {
@@ -260,7 +265,7 @@ export const usePosStore = defineStore('pos', {
     persistir () {
       try {
         localStorage.setItem(CLAVE, JSON.stringify({
-          items: this.items, cliente: this.cliente, descuento: this.descuento, espera: this.espera
+          items: this.items, cliente: this.cliente, descuento: this.descuento, espera: this.espera, comprobante: this.comprobante
         }))
       } catch {
         // Sin storage (modo privado, cuota): la venta sigue, sólo no se recuerda.

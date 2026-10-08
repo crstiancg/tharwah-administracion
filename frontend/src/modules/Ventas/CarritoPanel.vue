@@ -415,6 +415,32 @@
         </button>
       </div>
 
+      <!-- Comprobante: ticket interno, o boleta / factura electrónica (SUNAT). -->
+      <div class="carrito__comprobante">
+        <q-btn-toggle
+          v-model="pos.comprobante"
+          :options="OPCIONES_COMPROBANTE"
+          no-caps
+          unelevated
+          spread
+          dense
+          toggle-color="primary"
+          class="carrito__comprobanteToggle"
+          aria-label="Comprobante de la venta"
+        />
+        <p
+          v-if="motivoComprobante"
+          class="carrito__comprobanteAviso"
+          role="alert"
+        >
+          <q-icon
+            name="info"
+            size="14px"
+          />
+          {{ motivoComprobante }}
+        </p>
+      </div>
+
       <button
         type="button"
         class="carrito__cobrar"
@@ -478,6 +504,7 @@ import AppDialog from '@/components/AppDialog.vue'
 import AbrirCajaForm from '@/modules/Caja/AbrirCajaForm.vue'
 import CerrarCajaForm from '@/modules/Caja/CerrarCajaForm.vue'
 import { avisoCierre, CON_OPERACION, HORA_AVISO_CIERRE, METODOS } from '@/modules/Caja/constantes'
+import { motivoNoPermitido } from '@/modules/Comprobantes/constantes'
 import BuscadorCliente from '@/modules/Pedidos/BuscadorCliente.vue'
 import CajaService from '@/services/CajaService'
 import VentaService from '@/services/VentaService'
@@ -650,8 +677,17 @@ function errorPago (j, campo) {
   return errores.value[`venta.pagos.${j}.${campo}`]?.[0]
 }
 
+// ── Comprobante ──
+const OPCIONES_COMPROBANTE = [
+  { label: 'Ticket', value: 'ticket' },
+  { label: 'Boleta', value: 'boleta' },
+  { label: 'Factura', value: 'factura' }
+]
+// Mismo criterio que el backend: se avisa antes de cobrar.
+const motivoComprobante = computed(() => motivoNoPermitido(pos.comprobante, pos.cliente, pos.total))
+
 const puedeCobrar = computed(() =>
-  Boolean(caja.value) && !caja.value.vencida && pos.items.length > 0 && pos.total > 0 && Math.abs(pos.restante) < 0.005 && !procesando.value)
+  !motivoComprobante.value && Boolean(caja.value) && !caja.value.vencida && pos.items.length > 0 && pos.total > 0 && Math.abs(pos.restante) < 0.005 && !procesando.value)
 
 async function cobrar () {
   if (!puedeCobrar.value) {
@@ -666,6 +702,7 @@ async function cobrar () {
       cliente_id: pos.cliente?.id ?? null,
       descuento: pos.descuento || 0,
       items: pos.items.map((i) => ({ variante_id: i.variante_id, cantidad: i.cantidad, precio_unitario: i.precio_unitario })),
+      comprobante: pos.comprobante,
       pagos: pos.pagos.map((p) => ({
         metodo: p.metodo,
         monto: p.monto,
@@ -1175,6 +1212,33 @@ defineExpose({ cobrar, enfocarCliente })
       text-decoration: underline;
     }
   }
+}
+
+.carrito__comprobante {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.carrito__comprobanteToggle {
+  border: 1px solid var(--app-border-control);
+  border-radius: 8px;
+  overflow: hidden;
+
+  :deep(.q-btn) {
+    font-size: 13px;
+    font-weight: 600;
+  }
+}
+
+.carrito__comprobanteAviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--q-negative);
 }
 
 .carrito__cobrar {

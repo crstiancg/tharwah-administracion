@@ -356,11 +356,30 @@ function leerPreferencia () {
 
 function vendido (pedido) {
   venta.value = pedido
+  avisarComprobante(pedido.comprobante)
   ticketDialog.value = true
   carritoAbierto.value = false
   if (autoImprimir.value) impresionRef.value.imprimir(pedido)
   // El stock cambió: el catálogo se refresca.
   catalogoRef.value?.refrescar()
+}
+
+// Boleta o factura: si SUNAT no la aceptó, que se note (se reenvía desde Pedidos).
+function avisarComprobante (comprobante) {
+  if (!comprobante) return
+  if (comprobante.estado === 'aceptado') {
+    $q.notify({ type: 'positive', message: `${comprobante.numero} aceptada por SUNAT.`, position: 'top', timeout: 2000 })
+    return
+  }
+  $q.notify({
+    type: comprobante.estado === 'error' ? 'warning' : 'negative',
+    message: comprobante.estado === 'error'
+      ? `${comprobante.numero} no llegó a SUNAT (la venta sí se registró). Reenviala desde Pedidos.`
+      : `${comprobante.numero} rechazada por SUNAT: ${comprobante.sunat_mensaje ?? ''}`,
+    position: 'top',
+    timeout: 8000,
+    multiLine: true
+  })
 }
 
 function nuevaVenta () {

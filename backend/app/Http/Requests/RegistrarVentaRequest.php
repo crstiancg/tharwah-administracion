@@ -2,13 +2,18 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Cliente;
+use App\Models\Comprobante;
 use App\Models\Pago;
+use App\Models\Pedido;
 use App\Models\Variante;
+use App\Services\Facturacion;
 use App\Support\Cantidades;
 use App\Support\Sedes;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Venta de mostrador (punto de venta): ítems y pagos en un solo envío.
@@ -59,6 +64,8 @@ class RegistrarVentaRequest extends FormRequest
             'venta.descuento' => ['numeric', 'min:0', 'max:99999999.99', 'decimal:0,2', $this->descuentoValido()],
             'venta.items' => ['required', 'array', 'min:1', 'max:'.self::MAX_ITEMS],
             'venta.pagos' => ['required', 'array', 'min:1', 'max:5', $this->pagosCubrenElTotal()],
+            // ticket (sin comprobante SUNAT) | boleta | factura
+            'venta.comprobante' => ['nullable', Rule::in(['ticket', 'boleta', 'factura']), $this->comprobanteValido()],
         ];
 
         foreach (array_keys((array) $this->input('venta.items', [])) as $i) {
@@ -90,6 +97,31 @@ class RegistrarVentaRequest extends FormRequest
             ->sum(fn ($i) => round((float) ($i['cantidad'] ?? 0) * (float) ($i['precio_unitario'] ?? 0), 2));
 
         return round($subtotal - (float) $this->input('venta.descuento', 0), 2);
+    }
+
+    /** El tipo pedido en el POS → código SUNAT (null = ticket, sin comprobante). */
+    public const COMPROBANTES = ['boleta' => Comprobante::BOLETA, 'factura' => Comprobante::FACTURA];
+
+    /**
+     * Antes de vender: factura sólo con cliente con RUC y boleta de S/ 700 o
+     * más con el documento del cliente (si no, la venta se haría y el
+     * comprobante fallaría).
+     */
+    private function comprobanteValido(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) {
+            $tipo = self::COMPROBANTES[$value] ?? null;
+            if (! $tipo) {
+                return;
+            }
+
+            $cliente = $this->input('venta.cliente_id') ? Cliente::find($this->input('venta.cliente_id')) : null;
+            try {
+                app(Facturacion::class)->validar(new Pedido, $tipo, $cliente, $this->total());
+            } catch (ValidationException $e) {
+                $fail(collect($e->errors())->flatten()->first());
+            }
+        };
     }
 
     private function descuentoValido(): Closure
