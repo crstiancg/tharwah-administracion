@@ -27,7 +27,7 @@
       TICKET DE VENTA {{ pedido.codigo }}
     </div>
     <div class="ticket__centro">
-      No es comprobante de pago
+      Solicite su comprobante de pago
     </div>
 
     <div class="ticket__separador" />
