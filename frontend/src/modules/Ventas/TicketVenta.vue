@@ -145,9 +145,13 @@ const pagosCobro = computed(() => (props.pedido.pagos ?? []).filter((p) => !p.es
 // 80 mm de papel ≈ 72 mm imprimibles. Negro puro y monoespaciada: las
 // ticketeras térmicas no imprimen grises y así las columnas se alinean.
 .ticket {
-  width: 72mm;
+  // El driver suele dar los 72 mm imprimibles como ancho de página: con
+  // 100% + padding el texto no queda pegado al filo del papel.
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 72mm;
   margin: 0 auto;
-  padding: 4mm 0;
+  padding: 4mm 2mm;
   background: #FFFFFF;
   color: #000000;
   font-family: $font-mono;
