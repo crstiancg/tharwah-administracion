@@ -46,6 +46,15 @@
       >{{ codigo.slice(7) }}</text>
     </g>
   </svg>
+  <!-- Cualquier otro código (números o letras): Code 128, lo leen todas las lectoras.
+       Lo dibuja JsBarcode en este <svg>; el ancho lo pone quien lo usa. -->
+  <svg
+    v-else-if="esCode128"
+    ref="code128Ref"
+    class="codigo-barras"
+    role="img"
+    :aria-label="`Código de barras ${codigo}`"
+  />
   <span
     v-else
     class="codigo-barras__invalido"
@@ -53,7 +62,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import JsBarcode from 'jsbarcode'
 import { barrasEan13, esEan13 } from '@/utils/ean13'
 
 const props = defineProps({
@@ -74,6 +84,40 @@ const TEXTO = 9
 const ALTO = ALTO_GUARDA + TEXTO
 
 const barras = computed(() => (esEan13(props.codigo) ? barrasEan13(props.codigo) : null))
+
+// ── Code 128: cualquier código que no sea EAN-13 (Code 128 sólo admite ASCII) ──
+const esCode128 = computed(() => !barras.value && /^[ -~]+$/.test(props.codigo ?? ''))
+const code128Ref = ref()
+
+async function dibujarCode128 () {
+  await nextTick()
+  if (!esCode128.value || !code128Ref.value) return
+  JsBarcode(code128Ref.value, props.codigo, {
+    format: 'CODE128',
+    width: 1,
+    height: ALTO_BARRA,
+    // Zona en blanco a los costados: sin ella el lector no encuentra el inicio.
+    margin: 0,
+    marginLeft: 10,
+    marginRight: 10,
+    fontSize: TEXTO,
+    font: 'Courier New',
+    textMargin: 1,
+    background: '#FFFFFF',
+    lineColor: '#000000'
+  })
+  // Escalable como el EAN-13: viewBox con el tamaño que calculó JsBarcode y
+  // el ancho al 100% del contenedor.
+  const svg = code128Ref.value
+  const ancho = svg.getAttribute('width')
+  const alto = svg.getAttribute('height')
+  svg.setAttribute('viewBox', `0 0 ${parseFloat(ancho)} ${parseFloat(alto)}`)
+  svg.removeAttribute('width')
+  svg.removeAttribute('height')
+  svg.setAttribute('shape-rendering', 'crispEdges')
+}
+
+watch(() => props.codigo, dibujarCode128, { immediate: true })
 </script>
 
 <style lang="scss" scoped>

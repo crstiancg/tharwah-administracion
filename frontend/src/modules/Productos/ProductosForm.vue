@@ -237,8 +237,8 @@
         <dd>Código interno; se arma solo con el nombre, la presentación y el color. Podés cambiarlo.</dd>
         <dt>Código de barras</dt>
         <dd>
-          Obligatorio: el que trae el envase de fábrica (13 dígitos, empieza con 775 en productos peruanos).
-          Escanealo con la lectora o escribilo. Es el que lee el punto de venta y el que se imprime en las etiquetas.
+          Obligatorio: el que trae el envase o uno propio. Escanealo con la lectora o escribilo. Es el que lee el punto de venta
+          y el que se imprime en las etiquetas.
         </dd>
         <dt>Precio</dt>
         <dd>De venta de esta presentación, con IGV. Vacío = usa el precio base.</dd>
@@ -393,8 +393,6 @@
                 :error="Boolean(errorDe(i, 'codigo_barras'))"
                 :error-message="errorDe(i, 'codigo_barras')"
                 placeholder="7751234567890"
-                inputmode="numeric"
-                maxlength="16"
                 dense
                 outlined
                 hide-bottom-space

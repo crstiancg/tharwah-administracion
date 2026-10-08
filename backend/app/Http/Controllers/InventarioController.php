@@ -91,7 +91,7 @@ class InventarioController extends Controller
         if ($request->filled('sku')) {
             $codigo = mb_strtoupper(trim($request->input('sku')));
             $query->where(fn (Builder $q) => $q
-                ->where('variantes.codigo_barras', Ean13::normalizar($codigo))
+                ->whereIn('variantes.codigo_barras', Ean13::variantesDeLectura($codigo))
                 ->orWhere('variantes.sku', $codigo));
         }
 

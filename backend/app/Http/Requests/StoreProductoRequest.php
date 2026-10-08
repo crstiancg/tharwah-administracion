@@ -163,10 +163,11 @@ class StoreProductoRequest extends FormRequest
                 // (o reusar el de una que se quita) en el mismo guardado.
                 Rule::unique('variantes', 'sku')->where(fn ($q) => $q->where('producto_id', '!=', $producto?->getKey() ?? 0)),
             ];
-            // El de fábrica (el que trae el envase). Lo lee el POS y se imprime en
-            // las etiquetas, que son EAN-13: por eso se exige uno válido.
+            // El que trae el envase (o uno propio): sólo obligatorio, sin reglas
+            // de formato ni de largo. Único: si no, la lectora del POS no
+            // sabría qué producto agregar. (255 = el tope de la columna.)
             $rules["producto.variantes.{$i}.codigo_barras"] = [
-                'required', 'string', 'regex:/^\d{13}$/', $this->ean13Valido(),
+                'required', 'string', 'max:255',
                 $this->codigoUnicoEnElProducto($i),
                 Rule::unique('variantes', 'codigo_barras')->where(fn ($q) => $q->where('producto_id', '!=', $producto?->getKey() ?? 0)),
             ];
@@ -422,18 +423,6 @@ class StoreProductoRequest extends FormRequest
      * (`variantes.*.sku`) y éstas van por índice. Mismo criterio que
      * combinacionUnica: el error queda en la fila repetida.
      */
-    /**
-     * El dígito verificador ataja un número mal tipeado o mal escaneado.
-     */
-    private function ean13Valido(): Closure
-    {
-        return function (string $attribute, mixed $value, Closure $fail) {
-            if (is_string($value) && preg_match('/^\d{13}$/', $value) && ! Ean13::esValido($value)) {
-                $fail('Código de barras inválido: revisá los números (el último dígito no coincide).');
-            }
-        };
-    }
-
     private function codigoUnicoEnElProducto(int|string $indice): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail) use ($indice) {
@@ -496,7 +485,6 @@ class StoreProductoRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'producto.variantes.*.codigo_barras.regex' => 'El código de barras tiene que tener 13 dígitos (EAN-13) o 12 (UPC).',
             'producto.variantes.*.codigo_barras.unique' => 'Ese código de barras ya lo tiene otro producto.',
             'producto.costo_compra.required' => 'Poné cuánto te costó cada unidad: sin el costo no se puede calcular la ganancia.',
             'producto.variantes.required' => 'Agregá al menos una presentación.',

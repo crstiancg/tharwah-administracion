@@ -37,9 +37,8 @@ final class Ean13
     }
 
     /**
-     * Lo que escribe o escanea el usuario, listo para guardar o buscar: sin
-     * espacios ni guiones, y un UPC-A (12 dígitos, productos importados)
-     * como EAN-13 con un 0 adelante (es el mismo código para el lector).
+     * Lo que escribe o escanea el usuario, tal cual: sólo sin los espacios de
+     * los extremos (los que deja la lectora o un copiar y pegar).
      */
     public static function normalizar(?string $codigo): ?string
     {
@@ -47,12 +46,29 @@ final class Ean13
             return null;
         }
 
-        $limpio = preg_replace('/[\s-]+/', '', $codigo);
-        if ($limpio === '') {
-            return null;
+        $limpio = trim($codigo);
+
+        return $limpio === '' ? null : $limpio;
+    }
+
+    /**
+     * Las formas en que un lector puede mandar el mismo código: un UPC-A de
+     * 12 dígitos a veces llega con un 0 adelante (como EAN-13) y al revés.
+     *
+     * @return list<string>
+     */
+    public static function variantesDeLectura(string $codigo): array
+    {
+        $codigo = self::normalizar($codigo) ?? '';
+        $formas = [$codigo];
+        if (preg_match('/^\d{12}$/', $codigo)) {
+            $formas[] = '0'.$codigo;
+        }
+        if (preg_match('/^0\d{12}$/', $codigo)) {
+            $formas[] = substr($codigo, 1);
         }
 
-        return preg_match('/^\d{12}$/', $limpio) ? '0'.$limpio : $limpio;
+        return $formas;
     }
 
     public static function esValido(string $codigo): bool
