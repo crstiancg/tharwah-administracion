@@ -131,8 +131,25 @@
               </template>
             </div>
           </div>
-          <span :class="['text-mono', r.monto < 0 ? 'caja-resumen__menos' : 'caja-resumen__mas']">
-            {{ r.monto < 0 ? '−' : '+' }}{{ formatearPrecio(Math.abs(r.monto)) }}
+          <span class="caja-resumen__derecha">
+            <span :class="['text-mono', r.monto < 0 ? 'caja-resumen__menos' : 'caja-resumen__mas']">
+              {{ r.monto < 0 ? '−' : '+' }}{{ formatearPrecio(Math.abs(r.monto)) }}
+            </span>
+            <!-- Reimprimir el ticket de la venta de ese cobro. -->
+            <q-btn
+              v-if="r.pedidoId && puedeImprimir"
+              flat
+              dense
+              round
+              size="sm"
+              icon="print"
+              color="grey-7"
+              :loading="imprimiendo === r.pedidoId"
+              :aria-label="`Imprimir ticket de ${r.pedidoCodigo}`"
+              @click="imprimir(r.pedidoId)"
+            >
+              <q-tooltip>Imprimir ticket</q-tooltip>
+            </q-btn>
           </span>
         </li>
       </ul>
@@ -143,11 +160,17 @@
         Todavía no hay pagos ni movimientos en esta caja.
       </p>
     </section>
+
+    <ImpresionTicket ref="impresionRef" />
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useQuasar } from 'quasar'
+import ImpresionTicket from '@/modules/Ventas/ImpresionTicket.vue'
+import PedidoService from '@/services/PedidoService'
+import { useUserStore } from '@/stores/user-store'
 import { formatearPrecio } from '@/utils/moneda'
 
 /**
@@ -167,10 +190,31 @@ function formatearHora (iso) {
   return iso ? formatoHora.format(new Date(iso)) : ''
 }
 
+// ── Reimprimir el ticket de un cobro ──
+// Quien ve la caja y puede abrir pedidos (pedidos.show lo habilitan estos).
+const $q = useQuasar()
+const userStore = useUserStore()
+const puedeImprimir = computed(() => ['pedidos.index', 'pedidos.update', 'ventas.store'].some((p) => userStore.hasPermission(p)))
+const impresionRef = ref()
+const imprimiendo = ref(null)
+
+async function imprimir (pedidoId) {
+  imprimiendo.value = pedidoId
+  try {
+    impresionRef.value.imprimir(await PedidoService.get(pedidoId))
+  } catch {
+    $q.notify({ type: 'negative', message: 'No se pudo cargar el ticket.', position: 'top-right' })
+  } finally {
+    imprimiendo.value = null
+  }
+}
+
 // Pagos y movimientos en una sola lista, del más nuevo al más viejo.
 const registros = computed(() => [
   ...(props.caja.pagos ?? []).map((p) => ({
     clave: `p${p.id}`,
+    pedidoId: p.pedido?.id ?? null,
+    pedidoCodigo: p.pedido?.codigo ?? '',
     fecha: p.fecha,
     monto: Number(p.monto),
     concepto: `${p.es_devolucion ? 'Devolución' : 'Cobro'} ${p.pedido?.codigo ?? ''} · ${p.metodo_label}`,
@@ -280,6 +324,13 @@ const textoDiferencia = computed(() => {
 }
 
 .caja-resumen__metodos,
+.caja-resumen__derecha {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
 .caja-resumen__registros {
   margin: 0;
   padding: 0;
