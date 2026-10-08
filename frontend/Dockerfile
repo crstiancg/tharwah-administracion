@@ -19,7 +19,12 @@ COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 
 COPY . .
-RUN test -n "$VITE_APP_API_URL" || (echo "Falta el Build Arg VITE_APP_API_URL" && exit 1) \
+# La URL de la API puede llegar como Build Arg o en el .env que arma Dokploy
+# (Quasar lee ese .env al compilar).
+RUN if [ -z "$VITE_APP_API_URL" ] && ! grep -qs '^VITE_APP_API_URL=.' .env; then \
+      echo "Falta VITE_APP_API_URL: ponela en Build-time Arguments (o en Environment)"; \
+      ls -la; exit 1; \
+    fi \
     && npx quasar prepare \
     && npx quasar build
 

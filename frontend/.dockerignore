@@ -2,6 +2,6 @@
 node_modules
 dist
 .quasar
-.env
-.env.*
 test
+# .env NO se ignora: no está en git (lo ignora .gitignore), así que si
+# aparece en el build es el que generó Dokploy con las variables.
