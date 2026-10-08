@@ -148,6 +148,11 @@ const props = defineProps({
   id: {
     type: Number,
     default: null
+  },
+  // Al crear: lo ya escrito en el buscador ({ nombre } o { tipo_documento, numero_documento }).
+  inicial: {
+    type: Object,
+    default: null
   }
 })
 
@@ -214,7 +219,15 @@ async function consultar () {
 }
 
 onMounted(async () => {
-  if (!props.id) return
+  if (!props.id) {
+    // Viene del buscador: se completa con lo escrito y, si es un DNI o RUC
+    // completo, se consulta solo.
+    if (props.inicial) {
+      Object.assign(form.cliente, props.inicial)
+      numeroCambio()
+    }
+    return
+  }
 
   const cliente = await ClienteService.get(props.id)
   form.setData({
