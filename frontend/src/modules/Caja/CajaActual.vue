@@ -5,6 +5,13 @@
       :subtitle="subtitulo"
     >
       <template #actions>
+        <!-- Para probar la ticketera (ancho, corte, letra) sin hacer una venta. -->
+        <AppButton
+          variant="tertiary"
+          label="Ticket de prueba"
+          icon="print"
+          @click="impresionRef.imprimir(ticketDePrueba(userStore))"
+        />
         <AppButton
           v-if="userStore.hasPermission('cajas.index')"
           variant="tertiary"
@@ -113,6 +120,8 @@
       </template>
     </AppDialog>
 
+
+    <ImpresionTicket ref="impresionRef" />
   </div>
 </template>
 
@@ -125,12 +134,15 @@ import AppDialog from '@/components/AppDialog.vue'
 import AppPageHeader from '@/components/AppPageHeader.vue'
 import CajaService from '@/services/CajaService'
 import { useUserStore } from '@/stores/user-store'
+import ImpresionTicket from '@/modules/Ventas/ImpresionTicket.vue'
+import { ticketDePrueba } from '@/modules/Ventas/ticketDePrueba'
 import CajaResumen from './CajaResumen.vue'
 import MovimientoCajaForm from './MovimientoCajaForm.vue'
 
 const $q = useQuasar()
 const userStore = useUserStore()
 
+const impresionRef = ref()
 const caja = ref(null)
 const cargando = ref(true)
 
