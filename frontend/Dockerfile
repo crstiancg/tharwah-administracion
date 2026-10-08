@@ -14,10 +14,13 @@ ENV VITE_APP_API_URL=$VITE_APP_API_URL \
     VITE_APP_SECRET=$VITE_APP_SECRET
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# Sin scripts: el postinstall (quasar prepare) necesita quasar.config.js, que
+# todavía no se copió. Se corre después, ya con el código.
+RUN npm ci --ignore-scripts
 
 COPY . .
 RUN test -n "$VITE_APP_API_URL" || (echo "Falta el Build Arg VITE_APP_API_URL" && exit 1) \
+    && npx quasar prepare \
     && npx quasar build
 
 FROM nginx:1.27-alpine
