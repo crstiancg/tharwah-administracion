@@ -223,297 +223,77 @@
         {{ form.errors[`${PATH}.variantes`] }}
       </p>
 
-      <dl
+      <!-- La guía de cada campo: plegada por defecto (ocupa mucho) y se
+           recuerda si el usuario la dejó abierta. -->
+      <button
         v-if="form.producto.variantes.length"
-        class="producto-form__columnas"
+        type="button"
+        class="producto-form__guiaBtn"
+        :aria-expanded="String(guiaAbierta)"
+        @click="alternarGuia"
       >
-        <dt>Presentación</dt>
-        <dd>Cómo se vende: “Bolsa 25 kg”, “Galón 4 L”, “Cartucho 300 ml”.</dd>
-        <dt>Unidad</dt>
-        <dd>En qué se cuenta el stock. Si la unidad acepta decimales (kg, metro) se puede vender 2.5.</dd>
-        <dt>Color</dt>
-        <dd>Opcional: sólo si la presentación viene en colores.</dd>
-        <dt>SKU</dt>
-        <dd>Código interno; se arma solo con el nombre, la presentación y el color. Podés cambiarlo.</dd>
-        <dt>Código de barras</dt>
-        <dd>
-          Obligatorio: el que trae el envase o uno propio. Escanealo con la lectora o escribilo. Es el que lee el punto de venta
-          y el que se imprime en las etiquetas.
-        </dd>
-        <dt>Precio</dt>
-        <dd>De venta de esta presentación, con IGV. Vacío = usa el precio base.</dd>
-        <dt>Precio por mayor</dt>
-        <dd>
-          Opcional: el que pagan las empresas marcadas como “Cliente mayorista” (en Clientes). Es el mismo en
-          todas las sedes. Vacío = a las empresas también se les cobra el precio normal.
-        </dd>
-        <dt>Fotos</dt>
-        <dd>De esta presentación; si no tiene, se muestran las del producto.</dd>
-        <dt>{{ hayNuevas ? 'Stock inicial' : 'Stock' }}</dt>
-        <dd v-if="hayNuevas">
-          Unidades que ya tenés hoy en {{ userStore.sede?.nombre ?? 'tu sede' }} (sólo al crear la presentación). Si no tenés, dejalo vacío.
-        </dd>
-        <dd v-else>
-          Lo que hay hoy (pasá el mouse para ver cada sede). Se mueve desde Inventario, no desde acá.
-        </dd>
-      </dl>
+        <q-icon
+          name="help_outline"
+          size="16px"
+        />
+        {{ guiaAbierta ? 'Ocultar la ayuda' : '¿Qué va en cada campo?' }}
+        <q-icon
+          :name="guiaAbierta ? 'expand_less' : 'expand_more'"
+          size="16px"
+        />
+      </button>
+      <q-slide-transition>
+        <dl
+          v-if="form.producto.variantes.length && guiaAbierta"
+          class="producto-form__columnas"
+        >
+          <dt>Presentación</dt>
+          <dd>Cómo se vende: “Bolsa 25 kg”, “Galón 4 L”, “Cartucho 300 ml”.</dd>
+          <dt>Unidad</dt>
+          <dd>En qué se cuenta el stock. Si la unidad acepta decimales (kg, metro) se puede vender 2.5.</dd>
+          <dt>Color</dt>
+          <dd>Opcional: sólo si la presentación viene en colores.</dd>
+          <dt>SKU</dt>
+          <dd>Código interno; se arma solo con el nombre, la presentación y el color. Podés cambiarlo.</dd>
+          <dt>Código de barras</dt>
+          <dd>
+            Obligatorio: el que trae el envase o uno propio. Escanealo con la lectora o escribilo. Es el que lee el punto de venta
+            y el que se imprime en las etiquetas.
+          </dd>
+          <dt>Precio</dt>
+          <dd>De venta de esta presentación, con IGV. Vacío = usa el precio base.</dd>
+          <dt>Precio por mayor</dt>
+          <dd>
+            Opcional: el que pagan las empresas marcadas como “Cliente mayorista” (en Clientes). Es el mismo en
+            todas las sedes. Vacío = a las empresas también se les cobra el precio normal.
+          </dd>
+          <dt>Fotos</dt>
+          <dd>De esta presentación; si no tiene, se muestran las del producto.</dd>
+          <dt>{{ hayNuevas ? 'Stock inicial' : 'Stock' }}</dt>
+          <dd v-if="hayNuevas">
+            Unidades que ya tenés hoy en {{ userStore.sede?.nombre ?? 'tu sede' }} (sólo al crear la presentación). Si no tenés, dejalo vacío.
+          </dd>
+          <dd v-else>
+            Lo que hay hoy (pasá el mouse para ver cada sede). Se mueve desde Inventario, no desde acá.
+          </dd>
+        </dl>
+      </q-slide-transition>
 
+      <!-- Una tarjeta por presentación, con cada dato rotulado: en vez de
+           una tabla de 9 columnas con scroll horizontal (las últimas no se
+           veían), los campos se acomodan en filas según el ancho. -->
       <div
         v-if="form.producto.variantes.length"
-        class="producto-form__tablaWrap"
+        class="producto-form__tarjetas"
       >
-        <div class="producto-form__tabla">
-          <div class="producto-form__fila producto-form__fila--head">
-            <span>Presentación</span>
-            <span>Unidad</span>
-            <span>Color</span>
-            <span>SKU</span>
-            <span>Código de barras</span>
-            <span>Precio</span>
-            <span>Precio por mayor</span>
-            <span>Fotos</span>
-            <span class="text-right">{{ hayNuevas ? 'Stock inicial' : 'Stock' }}</span>
-            <span />
-          </div>
-
-          <template
-            v-for="(variante, i) in form.producto.variantes"
-            :key="variante.uid"
-          >
-            <div class="producto-form__fila">
-              <q-input
-                v-model="variante.presentacion"
-                :aria-label="`Presentación ${i + 1}`"
-                :error="Boolean(errorDe(i, 'presentacion'))"
-                :error-message="errorDe(i, 'presentacion')"
-                placeholder="Balde 4 gl"
-                maxlength="60"
-                dense
-                outlined
-                hide-bottom-space
-                no-error-icon
-                class="producto-form__control"
-                @update:model-value="refrescarSku(variante)"
-                @change="form.validate(`${PATH}.variantes.${i}.presentacion`)"
-              />
-
-              <q-select
-                v-model="variante.unidad_id"
-                :options="opcionesUnidades"
-                :aria-label="`Unidad de la presentación ${i + 1}`"
-                :error="Boolean(errorDe(i, 'unidad_id'))"
-                :error-message="errorDe(i, 'unidad_id')"
-                dense
-                outlined
-                hide-bottom-space
-                no-error-icon
-                emit-value
-                map-options
-                class="producto-form__control"
-                @update:model-value="form.validate(`${PATH}.variantes.${i}.unidad_id`)"
-              />
-
-              <q-select
-                v-model="variante.color_id"
-                :options="opcionesColores"
-                :aria-label="`Color de la presentación ${i + 1}`"
-                :error="Boolean(errorDe(i, 'color_id'))"
-                :error-message="errorDe(i, 'color_id')"
-                placeholder="—"
-                clearable
-                dense
-                outlined
-                hide-bottom-space
-                no-error-icon
-                emit-value
-                map-options
-                class="producto-form__control"
-                @update:model-value="cambioColor(variante, i)"
-              >
-                <template
-                  v-if="variante.color_id"
-                  #prepend
-                >
-                  <span
-                    class="producto-form__swatch"
-                    :style="{ background: colorPorId.get(variante.color_id)?.hexadecimal ?? 'transparent' }"
-                  />
-                </template>
-                <template #option="scope">
-                  <q-item v-bind="scope.itemProps">
-                    <q-item-section side>
-                      <span
-                        class="producto-form__swatch"
-                        :style="{ background: scope.opt.hexadecimal }"
-                      />
-                    </q-item-section>
-                    <q-item-section>{{ scope.opt.label }}</q-item-section>
-                  </q-item>
-                </template>
-              </q-select>
-
-              <q-input
-                :model-value="variante.sku"
-                :aria-label="`SKU de la presentación ${i + 1}`"
-                :error="Boolean(errorDe(i, 'sku'))"
-                :error-message="errorDe(i, 'sku')"
-                dense
-                outlined
-                hide-bottom-space
-                no-error-icon
-                maxlength="40"
-                class="producto-form__control producto-form__sku"
-                @update:model-value="escribirSku(variante, $event)"
-                @change="form.validate(`${PATH}.variantes.${i}.sku`)"
-              >
-                <template
-                  v-if="variante.skuManual"
-                  #append
-                >
-                  <q-btn
-                    flat
-                    dense
-                    round
-                    size="xs"
-                    icon="autorenew"
-                    tabindex="-1"
-                    :aria-label="`Volver al SKU sugerido en la presentación ${i + 1}`"
-                    @click="restaurarSku(variante, i)"
-                  >
-                    <q-tooltip>Volver al SKU sugerido</q-tooltip>
-                  </q-btn>
-                </template>
-              </q-input>
-
-              <!-- La lectora escribe el código y manda Enter: sin el .prevent,
-                   ese Enter guardaría todo el formulario. -->
-              <q-input
-                v-model="variante.codigo_barras"
-                :aria-label="`Código de barras de la presentación ${i + 1}`"
-                :error="Boolean(errorDe(i, 'codigo_barras'))"
-                :error-message="errorDe(i, 'codigo_barras')"
-                placeholder="7751234567890"
-                dense
-                outlined
-                hide-bottom-space
-                no-error-icon
-                class="producto-form__control producto-form__barras"
-                @keydown.enter.prevent="form.validate(`${PATH}.variantes.${i}.codigo_barras`)"
-                @change="form.validate(`${PATH}.variantes.${i}.codigo_barras`)"
-              >
-                <template #prepend>
-                  <q-icon
-                    name="mdi-barcode-scan"
-                    size="16px"
-                  />
-                </template>
-              </q-input>
-
-              <q-input
-                v-model="variante.precio"
-                :aria-label="`Precio de la presentación ${i + 1}`"
-                :placeholder="formatearPrecio(form.producto.precio) || 'Base'"
-                :error="Boolean(errorDe(i, 'precio'))"
-                :error-message="errorDe(i, 'precio')"
-                type="number"
-                min="0"
-                step="0.01"
-                dense
-                outlined
-                hide-bottom-space
-                no-error-icon
-                class="producto-form__control"
-                @change="form.validate(`${PATH}.variantes.${i}.precio`)"
-              />
-
-              <q-input
-                v-model="variante.precio_mayor"
-                :aria-label="`Precio por mayor de la presentación ${i + 1}`"
-                placeholder="—"
-                :error="Boolean(errorDe(i, 'precio_mayor'))"
-                :error-message="errorDe(i, 'precio_mayor')"
-                type="number"
-                min="0"
-                step="0.01"
-                dense
-                outlined
-                hide-bottom-space
-                no-error-icon
-                class="producto-form__control"
-                @change="form.validate(`${PATH}.variantes.${i}.precio_mayor`)"
-              >
-                <q-tooltip v-if="variante.precio_mayor !== '' && Number(variante.precio_mayor) >= Number(variante.precio || form.producto.precio)">
-                  Es igual o mayor que el precio normal: al mayorista se le cobra el normal
-                </q-tooltip>
-              </q-input>
-
-              <!-- Miniatura + cantidad; abre el panel de fotos debajo de la fila. -->
-              <button
-                type="button"
-                :class="['producto-form__fotosBtn', {
-                  'producto-form__fotosBtn--abierto': abierta === variante.uid,
-                  'producto-form__fotosBtn--error': erroresDe(`${PATH}.variantes.${i}.archivos`).length
-                }]"
-                :aria-expanded="String(abierta === variante.uid)"
-                :aria-label="`Fotos de la presentación ${i + 1} (${variante.archivos.length})`"
-                @click="abierta = abierta === variante.uid ? null : variante.uid"
-              >
-                <img
-                  v-if="variante.archivos.length"
-                  :src="variante.archivos[0].miniatura_url ?? variante.archivos[0].url"
-                  alt=""
-                  width="40"
-                  height="40"
-                  class="producto-form__fotosThumb"
-                >
-                <q-icon
-                  v-else
-                  name="add_a_photo"
-                  size="16px"
-                />
-                <span
-                  v-if="variante.archivos.length"
-                  class="producto-form__fotosCount"
-                >{{ variante.archivos.length }}</span>
-              </button>
-
-              <!-- Existente: su stock real (se mueve desde Inventario). Nueva:
-                   las unidades con que entra (su costo, lote y vencimiento se
-                   completan en "Stock inicial", debajo). -->
-              <span
-                v-if="variante.id"
-                class="producto-form__stock text-mono"
-              >
-                {{ formatearCantidad(variante.stock) }}
-                <q-tooltip v-if="variante.stocks.some((s) => s.cantidad)">
-                  <div
-                    v-for="s in variante.stocks.filter((s) => s.cantidad)"
-                    :key="s.sede_id"
-                  >
-                    {{ s.sede }}: {{ formatearCantidad(s.cantidad) }}
-                  </div>
-                </q-tooltip>
-              </span>
-              <div
-                v-else
-                class="producto-form__inicial"
-              >
-                <q-input
-                  v-model="variante.stock_inicial"
-                  :aria-label="`Stock inicial de la presentación ${i + 1}`"
-                  placeholder="0"
-                  type="number"
-                  min="0"
-                  :step="unidadPorId.get(variante.unidad_id)?.fraccionable ? '0.001' : '1'"
-                  dense
-                  outlined
-                  hide-bottom-space
-                  no-error-icon
-                  :error="Boolean(errorDe(i, 'stock_inicial'))"
-                  class="producto-form__control"
-                />
-              </div>
-
+        <template
+          v-for="(variante, i) in form.producto.variantes"
+          :key="variante.uid"
+        >
+          <article class="producto-form__tarjeta">
+            <header class="producto-form__tarjetaHead">
+              <span class="producto-form__tarjetaNumero">{{ i + 1 }}</span>
+              <span class="producto-form__tarjetaTitulo">{{ variante.presentacion || 'Nueva presentación' }}</span>
               <!-- Con stock o con historial de inventario no se quita: se
                    perdería mercadería o su trazabilidad (el backend también
                    lo rechaza). -->
@@ -532,6 +312,259 @@
                   {{ variante.stock !== 0 ? 'Tiene stock' : 'Tiene historial de inventario' }}: no se puede quitar
                 </q-tooltip>
               </q-btn>
+            </header>
+            <div class="producto-form__campos">
+              <div class="producto-form__campo producto-form__campo--ancho">
+                <span class="producto-form__campoLabel">Presentación</span>
+                <q-input
+                  v-model="variante.presentacion"
+                  :aria-label="`Presentación ${i + 1}`"
+                  :error="Boolean(errorDe(i, 'presentacion'))"
+                  :error-message="errorDe(i, 'presentacion')"
+                  placeholder="Balde 4 gl"
+                  maxlength="60"
+                  dense
+                  outlined
+                  hide-bottom-space
+                  no-error-icon
+                  class="producto-form__control"
+                  @update:model-value="refrescarSku(variante)"
+                  @change="form.validate(`${PATH}.variantes.${i}.presentacion`)"
+                />
+              </div>
+              <div class="producto-form__campo">
+                <span class="producto-form__campoLabel">Unidad</span>
+                <q-select
+                  v-model="variante.unidad_id"
+                  :options="opcionesUnidades"
+                  :aria-label="`Unidad de la presentación ${i + 1}`"
+                  :error="Boolean(errorDe(i, 'unidad_id'))"
+                  :error-message="errorDe(i, 'unidad_id')"
+                  dense
+                  outlined
+                  hide-bottom-space
+                  no-error-icon
+                  emit-value
+                  map-options
+                  class="producto-form__control"
+                  @update:model-value="form.validate(`${PATH}.variantes.${i}.unidad_id`)"
+                />
+              </div>
+              <div class="producto-form__campo">
+                <span class="producto-form__campoLabel">Color (opcional)</span>
+                <q-select
+                  v-model="variante.color_id"
+                  :options="opcionesColores"
+                  :aria-label="`Color de la presentación ${i + 1}`"
+                  :error="Boolean(errorDe(i, 'color_id'))"
+                  :error-message="errorDe(i, 'color_id')"
+                  placeholder="—"
+                  clearable
+                  dense
+                  outlined
+                  hide-bottom-space
+                  no-error-icon
+                  emit-value
+                  map-options
+                  class="producto-form__control"
+                  @update:model-value="cambioColor(variante, i)"
+                >
+                  <template
+                    v-if="variante.color_id"
+                    #prepend
+                  >
+                    <span
+                      class="producto-form__swatch"
+                      :style="{ background: colorPorId.get(variante.color_id)?.hexadecimal ?? 'transparent' }"
+                    />
+                  </template>
+                  <template #option="scope">
+                    <q-item v-bind="scope.itemProps">
+                      <q-item-section side>
+                        <span
+                          class="producto-form__swatch"
+                          :style="{ background: scope.opt.hexadecimal }"
+                        />
+                      </q-item-section>
+                      <q-item-section>{{ scope.opt.label }}</q-item-section>
+                    </q-item>
+                  </template>
+                </q-select>
+              </div>
+              <div class="producto-form__campo">
+                <span class="producto-form__campoLabel">SKU</span>
+                <q-input
+                  :model-value="variante.sku"
+                  :aria-label="`SKU de la presentación ${i + 1}`"
+                  :error="Boolean(errorDe(i, 'sku'))"
+                  :error-message="errorDe(i, 'sku')"
+                  dense
+                  outlined
+                  hide-bottom-space
+                  no-error-icon
+                  maxlength="40"
+                  class="producto-form__control producto-form__sku"
+                  @update:model-value="escribirSku(variante, $event)"
+                  @change="form.validate(`${PATH}.variantes.${i}.sku`)"
+                >
+                  <template
+                    v-if="variante.skuManual"
+                    #append
+                  >
+                    <q-btn
+                      flat
+                      dense
+                      round
+                      size="xs"
+                      icon="autorenew"
+                      tabindex="-1"
+                      :aria-label="`Volver al SKU sugerido en la presentación ${i + 1}`"
+                      @click="restaurarSku(variante, i)"
+                    >
+                      <q-tooltip>Volver al SKU sugerido</q-tooltip>
+                    </q-btn>
+                  </template>
+                </q-input>
+              </div>
+              <div class="producto-form__campo producto-form__campo--ancho">
+                <span class="producto-form__campoLabel">Código de barras</span>
+                <!-- La lectora escribe el código y manda Enter: sin el .prevent,
+                     ese Enter guardaría todo el formulario. -->
+                <q-input
+                  v-model="variante.codigo_barras"
+                  :aria-label="`Código de barras de la presentación ${i + 1}`"
+                  :error="Boolean(errorDe(i, 'codigo_barras'))"
+                  :error-message="errorDe(i, 'codigo_barras')"
+                  placeholder="7751234567890"
+                  dense
+                  outlined
+                  hide-bottom-space
+                  no-error-icon
+                  class="producto-form__control producto-form__barras"
+                  @keydown.enter.prevent="form.validate(`${PATH}.variantes.${i}.codigo_barras`)"
+                  @change="form.validate(`${PATH}.variantes.${i}.codigo_barras`)"
+                >
+                  <template #prepend>
+                    <q-icon
+                      name="mdi-barcode-scan"
+                      size="16px"
+                    />
+                  </template>
+                </q-input>
+              </div>
+              <div class="producto-form__campo">
+                <span class="producto-form__campoLabel">Precio (S/)</span>
+                <q-input
+                  v-model="variante.precio"
+                  :aria-label="`Precio de la presentación ${i + 1}`"
+                  :placeholder="formatearPrecio(form.producto.precio) || 'Base'"
+                  :error="Boolean(errorDe(i, 'precio'))"
+                  :error-message="errorDe(i, 'precio')"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  dense
+                  outlined
+                  hide-bottom-space
+                  no-error-icon
+                  class="producto-form__control"
+                  @change="form.validate(`${PATH}.variantes.${i}.precio`)"
+                />
+              </div>
+              <div class="producto-form__campo">
+                <span class="producto-form__campoLabel">Precio por mayor (S/)</span>
+                <q-input
+                  v-model="variante.precio_mayor"
+                  :aria-label="`Precio por mayor de la presentación ${i + 1}`"
+                  placeholder="—"
+                  :error="Boolean(errorDe(i, 'precio_mayor'))"
+                  :error-message="errorDe(i, 'precio_mayor')"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  dense
+                  outlined
+                  hide-bottom-space
+                  no-error-icon
+                  class="producto-form__control"
+                  @change="form.validate(`${PATH}.variantes.${i}.precio_mayor`)"
+                >
+                  <q-tooltip v-if="variante.precio_mayor !== '' && Number(variante.precio_mayor) >= Number(variante.precio || form.producto.precio)">
+                    Es igual o mayor que el precio normal: al mayorista se le cobra el normal
+                  </q-tooltip>
+                </q-input>
+              </div>
+              <div class="producto-form__campo">
+                <span class="producto-form__campoLabel">{{ variante.id ? 'Stock' : 'Stock inicial' }}</span>
+                <!-- Existente: su stock real (se mueve desde Inventario). Nueva:
+                     las unidades con que entra (su costo, lote y vencimiento se
+                     completan en "Stock inicial", debajo). -->
+                <span
+                  v-if="variante.id"
+                  class="producto-form__stock text-mono"
+                >
+                  {{ formatearCantidad(variante.stock) }}
+                  <q-tooltip v-if="variante.stocks.some((s) => s.cantidad)">
+                    <div
+                      v-for="s in variante.stocks.filter((s) => s.cantidad)"
+                      :key="s.sede_id"
+                    >
+                      {{ s.sede }}: {{ formatearCantidad(s.cantidad) }}
+                    </div>
+                  </q-tooltip>
+                </span>
+                <div
+                  v-else
+                  class="producto-form__inicial"
+                >
+                  <q-input
+                    v-model="variante.stock_inicial"
+                    :aria-label="`Stock inicial de la presentación ${i + 1}`"
+                    placeholder="0"
+                    type="number"
+                    min="0"
+                    :step="unidadPorId.get(variante.unidad_id)?.fraccionable ? '0.001' : '1'"
+                    dense
+                    outlined
+                    hide-bottom-space
+                    no-error-icon
+                    :error="Boolean(errorDe(i, 'stock_inicial'))"
+                    class="producto-form__control"
+                  />
+                </div>
+              </div>
+              <div class="producto-form__campo">
+                <span class="producto-form__campoLabel">Fotos</span>
+                <!-- Miniatura + cantidad; abre el panel de fotos debajo de la fila. -->
+                <button
+                  type="button"
+                  :class="['producto-form__fotosBtn', {
+                    'producto-form__fotosBtn--abierto': abierta === variante.uid,
+                    'producto-form__fotosBtn--error': erroresDe(`${PATH}.variantes.${i}.archivos`).length
+                  }]"
+                  :aria-expanded="String(abierta === variante.uid)"
+                  :aria-label="`Fotos de la presentación ${i + 1} (${variante.archivos.length})`"
+                  @click="abierta = abierta === variante.uid ? null : variante.uid"
+                >
+                  <img
+                    v-if="variante.archivos.length"
+                    :src="variante.archivos[0].miniatura_url ?? variante.archivos[0].url"
+                    alt=""
+                    width="40"
+                    height="40"
+                    class="producto-form__fotosThumb"
+                  >
+                  <q-icon
+                    v-else
+                    name="add_a_photo"
+                    size="16px"
+                  />
+                  <span
+                    v-if="variante.archivos.length"
+                    class="producto-form__fotosCount"
+                  >{{ variante.archivos.length }}</span>
+                </button>
+              </div>
             </div>
 
             <p
@@ -558,8 +591,8 @@
                 @click="copiarFotosATodas(variante)"
               />
             </div>
-          </template>
-        </div>
+          </article>
+        </template>
       </div>
 
       <!-- ── Venta por sede ── -->
@@ -1060,6 +1093,26 @@ const tieneStock = computed(() => form.producto.variantes.some((v) => Number(v.s
 // ── Stock inicial (sólo variantes nuevas) ──
 const hayNuevas = computed(() => form.producto.variantes.some((v) => !v.id))
 
+// Guía de los campos de las presentaciones: plegada por defecto; se recuerda
+// en este navegador (comodidad, no dato).
+const CLAVE_GUIA = 'tharwah.producto.guia'
+function leerGuia () {
+  try {
+    return localStorage.getItem(CLAVE_GUIA) === '1'
+  } catch {
+    return false
+  }
+}
+const guiaAbierta = ref(leerGuia())
+function alternarGuia () {
+  guiaAbierta.value = !guiaAbierta.value
+  try {
+    localStorage.setItem(CLAVE_GUIA, guiaAbierta.value ? '1' : '0')
+  } catch {
+    // Sin storage igual se abre y se cierra; sólo no se recuerda.
+  }
+}
+
 // Nuevas con stock inicial (con su índice, para los errores por fila).
 const conStockInicial = computed(() => form.producto.variantes
   .map((variante, i) => ({ variante, i }))
@@ -1329,6 +1382,24 @@ defineExpose({ form, submit })
   }
 }
 
+.producto-form__guiaBtn {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--app-ink-2);
+  cursor: pointer;
+
+  &:hover {
+    color: $primary;
+  }
+}
+
 .producto-form__columnas {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -1381,27 +1452,81 @@ defineExpose({ form, submit })
 }
 
 // En pantallas angostas la tabla se desplaza sola en vez de apretarse.
-.producto-form__tablaWrap {
-  overflow-x: auto;
-}
-
-.producto-form__tabla {
+// ── Presentaciones como tarjetas ──
+.producto-form__tarjetas {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-width: 1140px;
+  gap: 12px;
 }
 
-.producto-form__fila {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr 1.3fr 1.5fr 0.9fr 0.9fr 48px 92px 36px;
-  align-items: start;
-  gap: 8px;
+.producto-form__tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--app-border-subtle);
+  border-radius: 12px;
+  background: var(--app-surface);
+}
 
-  &--head {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--app-ink-2);
+.producto-form__tarjetaHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.producto-form__tarjetaNumero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--app-brand-soft);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--app-brand-soft-ink);
+}
+
+.producto-form__tarjetaTitulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--app-ink);
+}
+
+// Los campos se acomodan solos: 4 por fila en pantalla ancha, 1 en el celular.
+.producto-form__campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px 12px;
+  align-items: start;
+}
+
+.producto-form__campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+
+  &--ancho {
+    grid-column: span 2;
+  }
+}
+
+.producto-form__campoLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-ink-2);
+}
+
+@media (max-width: 599px) {
+  .producto-form__campo--ancho {
+    grid-column: auto;
   }
 }
 
