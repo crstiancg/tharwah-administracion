@@ -104,7 +104,7 @@
         class="showcase__foot"
         style="--rise: 5"
       >
-        <span>© {{ year }} THARWAH</span>
+        <span>© {{ year }} GRUPO THARWAH S.A.C.</span>
         <span class="showcase__footSep" />
         <span class="showcase__footItem">
           <q-icon

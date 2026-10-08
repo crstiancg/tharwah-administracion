@@ -5,7 +5,8 @@
 const env = import.meta.env
 
 export const TIENDA = {
-  nombre: env.VITE_APP_TIENDA_NOMBRE || 'Tharwah',
+  // Razón social: encabeza el ticket y la cotización impresa.
+  nombre: env.VITE_APP_TIENDA_NOMBRE || 'GRUPO THARWAH S.A.C.',
   ruc: env.VITE_APP_TIENDA_RUC || '',
   direccion: env.VITE_APP_TIENDA_DIRECCION || '',
   telefono: env.VITE_APP_TIENDA_TELEFONO || '',
