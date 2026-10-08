@@ -7,6 +7,7 @@ use App\Models\MovimientoCaja;
 use App\Models\Pago;
 use App\Models\Pedido;
 use App\Models\User;
+use App\Support\Fechas;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -20,16 +21,57 @@ use Illuminate\Validation\ValidationException;
  *   muestra lo cobrado del día por método. El arqueo compara sólo efectivo.
  * - Pagos y movimientos son inmutables: un error se corrige con otro
  *   registro (una devolución), nunca editando.
- * - La caja es diaria: una abierta en un día anterior no recibe dinero
- *   hasta cerrarla (Caja::esDeOtroDia).
+ * - La caja es diaria: la de un día anterior se cierra sola a medianoche
+ *   de su día (sin arqueo) la próxima vez que alguien la consulta.
  * - La caja abierta se bloquea (FOR UPDATE) al registrar: un pago no puede
  *   colarse en una caja que se está cerrando en ese mismo instante.
  */
 class Cajas
 {
+    /**
+     * La caja abierta de la sede. Si es de un día anterior se cierra sola
+     * (a medianoche de su día) y no hay caja abierta: la de hoy se abre en
+     * el punto de venta.
+     */
     public function actual(int $sedeId): ?Caja
     {
-        return Caja::query()->where('sede_id', $sedeId)->where('estado', Caja::ABIERTA)->first();
+        $caja = Caja::query()->where('sede_id', $sedeId)->where('estado', Caja::ABIERTA)->first();
+
+        if ($caja?->esDeOtroDia()) {
+            $this->cerrarAutomatico($caja);
+
+            return null;
+        }
+
+        return $caja;
+    }
+
+    /**
+     * Cierre a medianoche de una caja que nadie cerró. Sin arqueo: nadie
+     * contó el efectivo, así que contado y diferencia quedan vacíos (no se
+     * inventa un "cuadra exacto") y la observación lo dice.
+     */
+    public function cerrarAutomatico(Caja $caja): void
+    {
+        DB::transaction(function () use ($caja) {
+            $caja = Caja::query()->whereKey($caja->id)->lockForUpdate()->first();
+            if (! $caja?->estaAbierta()) {
+                return;
+            }
+
+            $medianoche = Fechas::finDelDia($caja->abierta_at->copy()->setTimezone(Fechas::zona()));
+
+            $caja->forceFill([
+                'estado' => Caja::CERRADA,
+                'abierta' => null,
+                'monto_esperado' => $this->resumen($caja)['efectivo_esperado'],
+                'monto_contado' => null,
+                'diferencia' => null,
+                'observacion_cierre' => 'Cierre automático a medianoche: sin arqueo (nadie contó el efectivo).',
+                'cerrada_por' => null,
+                'cerrada_at' => $medianoche,
+            ])->save();
+        });
     }
 
     public function abrir(int $sedeId, float $montoApertura, ?User $usuario): Caja
@@ -281,7 +323,9 @@ class Cajas
         // La caja es diaria: la de ayer se cierra (arqueo) antes de cobrar hoy.
         if ($caja->esDeOtroDia()) {
             $dia = $caja->abierta_at->copy()->setTimezone(config('app.zona_negocio'))->format('d/m');
-            throw $this->conflicto('caja', "La caja del {$dia} sigue abierta: cerrala desde el punto de venta y abrí la de hoy.");
+            // No se cierra acá: el error deshace la transacción. La cierra la
+            // próxima consulta de la caja (actual()), que hace el POS al recibir esto.
+            throw $this->conflicto('caja', "La caja del {$dia} ya no cobra: se cerró a medianoche. Abrí la de hoy para seguir.");
         }
 
         return $caja;

@@ -1,3 +1,4 @@
+import { precioPara } from '@/utils/precios'
 import { defineStore } from 'pinia'
 
 /**
@@ -44,7 +45,10 @@ export function lineaDesdeCatalogo (producto, variante) {
     fraccionable: Boolean(variante.unidad?.fraccionable),
     color: variante.color ?? null,
     stock: variante.stock,
-    // El de hoy (con oferta) y el de lista, para mostrar el ahorro.
+    // El de hoy (con oferta) y el de lista, para mostrar el ahorro. El precio
+    // que se cobra lo fija el carrito según el cliente (por mayor o normal).
+    precio_hoy: Number(variante.precio ?? producto.precio).toFixed(2),
+    precio_mayor: variante.precio_mayor ?? null,
     precio_unitario: Number(variante.precio ?? producto.precio).toFixed(2),
     precio_lista: Number(variante.precio_lista ?? variante.precio ?? producto.precio).toFixed(2),
     miniatura_url: variante.miniatura_url ?? producto.miniatura_url ?? null
@@ -63,6 +67,8 @@ export function lineaDesdeEscaner (variante) {
     fraccionable: Boolean(variante.unidad?.fraccionable),
     color: variante.color ?? null,
     stock: variante.stock,
+    precio_hoy: Number(variante.precio ?? 0).toFixed(2),
+    precio_mayor: variante.precio_mayor ?? null,
     precio_unitario: Number(variante.precio ?? 0).toFixed(2),
     precio_lista: Number(variante.precio_lista ?? variante.precio ?? 0).toFixed(2),
     miniatura_url: variante.miniatura_url ?? null
@@ -114,7 +120,8 @@ export const usePosStore = defineStore('pos', {
         existente.cantidad++
         existente.stock = linea.stock
       } else {
-        this.items.push({ ...linea, cantidad: 1 })
+        const { precio, porMayor } = precioPara(linea.precio_hoy ?? linea.precio_unitario, linea.precio_mayor, this.cliente)
+        this.items.push({ ...linea, cantidad: 1, precio_unitario: precio, precio_auto: precio, por_mayor: porMayor })
       }
       this.seleccionado = linea.variante_id
       return 'ok'
@@ -153,6 +160,20 @@ export const usePosStore = defineStore('pos', {
 
       item.cantidad = nueva
       return 'ok'
+    },
+
+    /**
+     * Cliente mayorista ↔ no mayorista: las líneas pasan al precio que le
+     * toca. Las que el vendedor cambió a mano no se tocan.
+     */
+    aplicarCliente () {
+      for (const item of this.items) {
+        if (item.precio_auto === undefined || item.precio_unitario !== item.precio_auto) continue
+        const { precio, porMayor } = precioPara(item.precio_hoy ?? item.precio_unitario, item.precio_mayor, this.cliente)
+        item.precio_unitario = precio
+        item.precio_auto = precio
+        item.por_mayor = porMayor
+      }
     },
 
     quitar (varianteId) {

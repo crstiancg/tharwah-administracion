@@ -213,13 +213,14 @@ class ProductoController extends Controller
 
         // Primero se liberan los SKU de las que se editan: si A pasa a usar el
         // SKU viejo de B en el mismo guardado, el unique chocaría a mitad.
+        // Lo mismo con el código de barras (también es único).
         foreach ($existentes as $variante) {
-            $variante->update(['sku' => "~{$variante->id}"]);
+            $variante->update(['sku' => "~{$variante->id}", 'codigo_barras' => null]);
         }
 
         $guardadas = [];
         foreach (array_values($variantes) as $datos) {
-            $campos = collect($datos)->only(['presentacion', 'unidad_id', 'color_id', 'sku', 'precio'])->all();
+            $campos = collect($datos)->only(['presentacion', 'unidad_id', 'color_id', 'sku', 'codigo_barras', 'precio', 'precio_mayor'])->all();
 
             $variante = empty($datos['id'])
                 ? $producto->variantes()->create($campos)

@@ -66,7 +66,8 @@
           >
             {{ Number(props.row.diferencia) > 0 ? '+' : '' }}{{ formatearPrecio(props.row.diferencia) }}
           </span>
-          <span v-else>—</span>
+          <!-- Cerrada sin contar el efectivo (cierre automático a medianoche). -->
+          <span v-else>{{ props.row.estado === 'cerrada' ? 'Sin arqueo' : '—' }}</span>
         </q-td>
       </template>
     </AppTable>

@@ -13,6 +13,7 @@ use App\Models\Lote;
 use App\Models\MovimientoInventario;
 use App\Models\Variante;
 use App\Services\Inventario;
+use App\Support\Ean13;
 use App\Support\Fechas;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -90,7 +91,7 @@ class InventarioController extends Controller
         if ($request->filled('sku')) {
             $codigo = mb_strtoupper(trim($request->input('sku')));
             $query->where(fn (Builder $q) => $q
-                ->where('variantes.codigo_barras', $codigo)
+                ->where('variantes.codigo_barras', Ean13::normalizar($codigo))
                 ->orWhere('variantes.sku', $codigo));
         }
 

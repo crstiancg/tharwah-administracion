@@ -20,6 +20,7 @@ class PedidoItemResource extends JsonResource
             'variante_id' => $this->variante_id,
             'cantidad' => $this->cantidad,
             'precio_unitario' => $this->precio_unitario,
+            'por_mayor' => (bool) $this->por_mayor,
             'costo_unitario' => $this->costo_unitario,
             'subtotal' => $this->subtotal,
             'variante' => $this->whenLoaded('variante', fn () => new VarianteStockResource($this->variante)),

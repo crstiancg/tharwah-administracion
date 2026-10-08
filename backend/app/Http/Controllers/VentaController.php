@@ -88,6 +88,7 @@ class VentaController extends Controller
                     'color' => $v->color?->only(['nombre', 'hexadecimal']),
                     'precio' => $vigente['precio'],
                     'precio_lista' => $vigente['precio_lista'],
+                    'precio_mayor' => $v->precio_mayor,
                     'oferta' => $vigente['oferta']?->etiqueta(),
                     // Vendible (sin lo vencido) y, aparte, lo vencido.
                     'stock' => $v->stockVendible(),

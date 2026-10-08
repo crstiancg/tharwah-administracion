@@ -21,6 +21,7 @@ use App\Services\Compras;
 use App\Services\Cotizaciones;
 use App\Services\Inventario;
 use App\Services\Pedidos;
+use App\Support\Ean13;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -241,6 +242,8 @@ class DemoSeeder extends Seeder
                     'sku' => $sku,
                     'precio' => $precioPropio,
                 ]);
+                // Demostración: un EAN-13 interno (prefijo 20) en vez del de fábrica.
+                $variantes[$sku]->forceFill(['codigo_barras' => Ean13::paraVariante($variantes[$sku]->id)])->save();
 
                 $this->habilitar($variantes[$sku], $lima, $minimo);
                 if (! in_array($nombre, $soloLima, true)) {

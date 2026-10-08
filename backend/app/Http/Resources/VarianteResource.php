@@ -28,6 +28,8 @@ class VarianteResource extends JsonResource
             'codigo_barras' => $this->codigo_barras,
             // null = usa el precio base del producto.
             'precio' => $this->precio,
+            // Venta por mayor a empresas (null = no tiene).
+            'precio_mayor' => $this->precio_mayor,
             // Costo promedio (para ver la ganancia): sólo a quien administra
             // productos o ve reportes, no a cualquier vendedor.
             'costo_promedio' => $this->when(

@@ -192,6 +192,9 @@
                 <th class="text-right">
                   Precio
                 </th>
+                <th class="text-right">
+                  Por mayor
+                </th>
                 <template v-if="veCostos">
                   <th class="text-right">
                     Costo
@@ -249,6 +252,9 @@
                 </td>
                 <td class="text-right text-mono">
                   {{ formatearPrecio(v.precioSede) }}
+                </td>
+                <td class="text-right text-mono">
+                  {{ v.precio_mayor !== null && v.precio_mayor !== undefined ? formatearPrecio(v.precio_mayor) : '—' }}
                 </td>
                 <template v-if="veCostos">
                   <td class="text-right text-mono">

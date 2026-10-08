@@ -24,7 +24,19 @@
 
     <!-- Arqueo (sólo cerrada). -->
     <div
-      v-if="caja.estado === 'cerrada'"
+      v-if="caja.estado === 'cerrada' && caja.monto_contado === null"
+      class="caja-resumen__arqueo caja-resumen__arqueo--sobrante"
+    >
+      Cerrada sin arqueo · esperado <span class="text-mono">{{ formatearPrecio(caja.monto_esperado) }}</span>
+      <div
+        v-if="caja.observacion_cierre"
+        class="caja-resumen__detalle"
+      >
+        {{ caja.observacion_cierre }}
+      </div>
+    </div>
+    <div
+      v-else-if="caja.estado === 'cerrada'"
       :class="['caja-resumen__arqueo', claseDiferencia]"
     >
       Contado <strong class="text-mono">{{ formatearPrecio(caja.monto_contado) }}</strong>

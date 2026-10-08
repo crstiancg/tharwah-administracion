@@ -235,8 +235,18 @@
         <dd>Opcional: sólo si la presentación viene en colores.</dd>
         <dt>SKU</dt>
         <dd>Código interno; se arma solo con el nombre, la presentación y el color. Podés cambiarlo.</dd>
+        <dt>Código de barras</dt>
+        <dd>
+          Obligatorio: el que trae el envase de fábrica (13 dígitos, empieza con 775 en productos peruanos).
+          Escanealo con la lectora o escribilo. Es el que lee el punto de venta y el que se imprime en las etiquetas.
+        </dd>
         <dt>Precio</dt>
         <dd>De venta de esta presentación, con IGV. Vacío = usa el precio base.</dd>
+        <dt>Precio por mayor</dt>
+        <dd>
+          Opcional: el que pagan las empresas marcadas como “Cliente mayorista” (en Clientes). Es el mismo en
+          todas las sedes. Vacío = a las empresas también se les cobra el precio normal.
+        </dd>
         <dt>Fotos</dt>
         <dd>De esta presentación; si no tiene, se muestran las del producto.</dd>
         <dt>{{ hayNuevas ? 'Stock inicial' : 'Stock' }}</dt>
@@ -258,7 +268,9 @@
             <span>Unidad</span>
             <span>Color</span>
             <span>SKU</span>
+            <span>Código de barras</span>
             <span>Precio</span>
+            <span>Precio por mayor</span>
             <span>Fotos</span>
             <span class="text-right">{{ hayNuevas ? 'Stock inicial' : 'Stock' }}</span>
             <span />
@@ -373,6 +385,32 @@
                 </template>
               </q-input>
 
+              <!-- La lectora escribe el código y manda Enter: sin el .prevent,
+                   ese Enter guardaría todo el formulario. -->
+              <q-input
+                v-model="variante.codigo_barras"
+                :aria-label="`Código de barras de la presentación ${i + 1}`"
+                :error="Boolean(errorDe(i, 'codigo_barras'))"
+                :error-message="errorDe(i, 'codigo_barras')"
+                placeholder="7751234567890"
+                inputmode="numeric"
+                maxlength="16"
+                dense
+                outlined
+                hide-bottom-space
+                no-error-icon
+                class="producto-form__control producto-form__barras"
+                @keydown.enter.prevent="form.validate(`${PATH}.variantes.${i}.codigo_barras`)"
+                @change="form.validate(`${PATH}.variantes.${i}.codigo_barras`)"
+              >
+                <template #prepend>
+                  <q-icon
+                    name="mdi-barcode-scan"
+                    size="16px"
+                  />
+                </template>
+              </q-input>
+
               <q-input
                 v-model="variante.precio"
                 :aria-label="`Precio de la presentación ${i + 1}`"
@@ -389,6 +427,27 @@
                 class="producto-form__control"
                 @change="form.validate(`${PATH}.variantes.${i}.precio`)"
               />
+
+              <q-input
+                v-model="variante.precio_mayor"
+                :aria-label="`Precio por mayor de la presentación ${i + 1}`"
+                placeholder="—"
+                :error="Boolean(errorDe(i, 'precio_mayor'))"
+                :error-message="errorDe(i, 'precio_mayor')"
+                type="number"
+                min="0"
+                step="0.01"
+                dense
+                outlined
+                hide-bottom-space
+                no-error-icon
+                class="producto-form__control"
+                @change="form.validate(`${PATH}.variantes.${i}.precio_mayor`)"
+              >
+                <q-tooltip v-if="variante.precio_mayor !== '' && Number(variante.precio_mayor) >= Number(variante.precio || form.producto.precio)">
+                  Es igual o mayor que el precio normal: al mayorista se le cobra el normal
+                </q-tooltip>
+              </q-input>
 
               <!-- Miniatura + cantidad; abre el panel de fotos debajo de la fila. -->
               <button
@@ -1096,7 +1155,9 @@ onMounted(async () => {
         unidad_id: v.unidad_id,
         color_id: v.color_id,
         sku: v.sku,
+        codigo_barras: v.codigo_barras ?? '',
         precio: v.precio ?? '',
+        precio_mayor: v.precio_mayor ?? '',
         stock: v.stock,
         stocks: v.stocks ?? [],
         // Lo que viaja: cómo la vende cada sede (las que faltan las completa
@@ -1330,12 +1391,12 @@ defineExpose({ form, submit })
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 880px;
+  min-width: 1140px;
 }
 
 .producto-form__fila {
   display: grid;
-  grid-template-columns: 1.6fr 1.2fr 1.2fr 1.6fr 1fr 48px 92px 36px;
+  grid-template-columns: 1.4fr 1fr 1fr 1.3fr 1.5fr 0.9fr 0.9fr 48px 92px 36px;
   align-items: start;
   gap: 8px;
 
@@ -1344,6 +1405,11 @@ defineExpose({ form, submit })
     font-weight: 600;
     color: var(--app-ink-2);
   }
+}
+
+.producto-form__barras :deep(input) {
+  font-family: $font-mono;
+  letter-spacing: 0.02em;
 }
 
 .producto-form__sku :deep(input) {

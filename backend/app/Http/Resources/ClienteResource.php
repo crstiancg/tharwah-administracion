@@ -20,6 +20,8 @@ class ClienteResource extends JsonResource
             'tipo_documento' => $this->tipo_documento,
             'numero_documento' => $this->numero_documento,
             'nombre' => $this->nombre,
+            // Empresa con precio por mayor.
+            'mayorista' => (bool) $this->mayorista,
             'telefono' => $this->telefono,
             'email' => $this->email,
             'direccion' => $this->direccion,

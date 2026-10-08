@@ -67,6 +67,7 @@ class CatalogoProductoResource extends JsonResource
                 // de la variante o el base del producto), para tacharlo.
                 'precio' => $x['precio'],
                 'precio_lista' => $x['precio_lista'],
+                'precio_mayor' => $x['variante']->precio_mayor,
                 'oferta' => $x['oferta']?->etiqueta(),
                 'presentacion' => $x['variante']->presentacion,
                 'unidad' => $x['variante']->unidad?->only(['id', 'nombre', 'abreviatura', 'fraccionable']),

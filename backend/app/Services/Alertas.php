@@ -45,7 +45,7 @@ class Alertas
                     'No se puede cobrar hasta cerrarla (arqueo) desde el punto de venta.', 1, '/pos');
             } elseif ($caja && now(Fechas::zona())->hour >= (int) config('app.hora_aviso_cierre')) {
                 $alertas[] = $this->alerta('caja_cierre', 'warning', 'Fin del día: cerrá la caja',
-                    'La caja es diaria: hacé el arqueo antes de irte.', 1, '/pos');
+                    'A medianoche se cierra sola, pero sin arqueo: hacé el cierre contando el efectivo.', 1, '/pos');
             }
         }
 

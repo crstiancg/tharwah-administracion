@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Una línea del pedido con precio (y, al confirmar, costo) congelados: lo
  * que se cobró y lo que costó en ESE momento.
  */
-#[Fillable(['variante_id', 'cantidad', 'precio_unitario', 'subtotal'])]
+#[Fillable(['variante_id', 'cantidad', 'precio_unitario', 'por_mayor', 'subtotal'])]
 class PedidoItem extends Model
 {
     public $timestamps = false;
@@ -20,6 +20,7 @@ class PedidoItem extends Model
         return [
             'cantidad' => 'float',
             'precio_unitario' => 'decimal:2',
+            'por_mayor' => 'boolean',
             'costo_unitario' => 'decimal:4',
             'subtotal' => 'decimal:2',
         ];

@@ -41,6 +41,8 @@ class CajaResource extends JsonResource
             'abierta_at' => $this->abierta_at?->toIso8601String(),
             // Abierta en un día anterior: no cobra hasta cerrarla.
             'vencida' => $this->resource->esDeOtroDia(),
+            // Desde qué hora el punto de venta avisa que hay que cerrarla.
+            'hora_aviso_cierre' => (int) config('app.hora_aviso_cierre'),
             'abierta_por' => $this->whenLoaded('abiertaPor', fn () => $this->abiertaPor?->only(['id', 'name'])),
             'cerrada_at' => $this->cerrada_at?->toIso8601String(),
             'cerrada_por' => $this->whenLoaded('cerradaPor', fn () => $this->cerradaPor?->only(['id', 'name'])),

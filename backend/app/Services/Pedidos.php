@@ -48,6 +48,13 @@ class Pedidos
             // Pendiente todavía no tocó el stock: los ítems se reemplazan.
             $pedido->items()->delete();
             $subtotal = 0.0;
+
+            // Por mayor: cliente mayorista y la presentación tiene ese precio.
+            $mayorista = (bool) $pedido->cliente()->value('mayorista');
+            $preciosMayor = $mayorista
+                ? Variante::query()->whereKey(collect($datos['items'])->pluck('variante_id'))->pluck('precio_mayor', 'id')
+                : collect();
+
             foreach ($datos['items'] as $item) {
                 $linea = round((float) $item['cantidad'] * (float) $item['precio_unitario'], 2);
                 $subtotal += $linea;
@@ -56,6 +63,7 @@ class Pedidos
                     'variante_id' => $item['variante_id'],
                     'cantidad' => $item['cantidad'],
                     'precio_unitario' => $item['precio_unitario'],
+                    'por_mayor' => $preciosMayor->get($item['variante_id']) !== null,
                     'subtotal' => $linea,
                 ]);
             }

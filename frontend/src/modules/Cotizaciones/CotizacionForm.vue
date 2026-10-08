@@ -170,6 +170,10 @@
                   class="cotizacion-form__control"
                   @change="form.validate(`${PATH}.items.${i}.precio_unitario`)"
                 />
+                <span
+                  v-if="item.por_mayor && (item.precio_auto === undefined || item.precio_unitario === item.precio_auto)"
+                  class="precio-mayor"
+                >Por mayor</span>
               </td>
 
               <td class="text-right text-mono cotizacion-form__subtotal">
@@ -320,7 +324,7 @@ import { useUserStore } from '@/stores/user-store'
 import { formatearPrecio } from '@/utils/moneda'
 import { desglosarIgv, ETIQUETA_IGV } from '@/utils/igv'
 import BuscadorCliente from '@/modules/Pedidos/BuscadorCliente.vue'
-import { nuevoItem } from '@/modules/Pedidos/FormPedido'
+import { nuevoItem, reprecio } from '@/modules/Pedidos/FormPedido'
 import formCotizacion from './FormCotizacion'
 import { hoyLocal } from './constantes'
 
@@ -347,7 +351,11 @@ const form = props.id
 // ── Cliente ──
 // El objeto completo para mostrarlo; al backend viaja sólo el id.
 const cliente = ref(null)
-watch(cliente, (valor) => { form.cotizacion.cliente_id = valor?.id ?? null })
+watch(cliente, (valor) => {
+  form.cotizacion.cliente_id = valor?.id ?? null
+  // Mayorista ↔ no mayorista: los precios propuestos por el sistema cambian.
+  reprecio(form.cotizacion.items, valor)
+})
 
 const clienteDialog = ref(false)
 const clienteFormRef = ref()
@@ -363,7 +371,7 @@ function errorDe (i, campo) {
 }
 
 function agregar (variante) {
-  form.cotizacion.items.push(nuevoItem(variante))
+  form.cotizacion.items.push(nuevoItem(variante, cliente.value))
 }
 
 function quitar (i) {
@@ -426,6 +434,18 @@ defineExpose({ form, submit })
 </script>
 
 <style lang="scss" scoped>
+.precio-mayor {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--app-brand-soft);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 17px;
+  color: var(--app-brand-soft-ink);
+}
+
 .cotizacion-form {
   display: flex;
   flex-direction: column;

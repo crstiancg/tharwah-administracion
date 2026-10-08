@@ -40,6 +40,8 @@ class VarianteStockResource extends JsonResource
             'precio' => $vigente['precio'],
             'precio_lista' => $vigente['precio_lista'],
             'oferta' => $vigente['oferta']?->etiqueta(),
+            // Para clientes mayoristas (null = no tiene).
+            'precio_mayor' => $this->precio_mayor,
         ];
     }
 

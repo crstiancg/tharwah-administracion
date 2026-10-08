@@ -34,6 +34,12 @@
         <q-td :props="props">
           <div class="cliente-nombre">
             {{ props.row.nombre }}
+            <AppChip
+              v-if="props.row.mayorista"
+              status="info"
+              label="Mayorista"
+              class="q-ml-xs"
+            />
           </div>
           <div
             v-if="props.row.email"
@@ -154,6 +160,7 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import AppButton from '@/components/AppButton.vue'
+import AppChip from '@/components/AppChip.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppFilterBar from '@/components/AppFilterBar.vue'
 import AppPageHeader from '@/components/AppPageHeader.vue'

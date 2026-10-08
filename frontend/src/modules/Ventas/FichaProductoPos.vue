@@ -121,6 +121,10 @@
                 v-if="v.oferta"
                 class="ficha-pos__oferta"
               >{{ v.oferta }}</span>
+              <span
+                v-if="v.precio_mayor !== null && v.precio_mayor !== undefined"
+                class="ficha-pos__mayor text-mono"
+              >Por mayor {{ formatearPrecio(v.precio_mayor) }}</span>
             </div>
 
             <div :class="['ficha-pos__stock', `ficha-pos__stock--${nivel(v.stock)}`]">
@@ -418,6 +422,8 @@ defineExpose({ abrir })
 
 .ficha-pos__precio {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: baseline;
   gap: 6px;
 
@@ -430,6 +436,16 @@ defineExpose({ abrir })
     font-size: 15px;
     color: var(--app-ink);
   }
+}
+
+.ficha-pos__mayor {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--app-brand-soft);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--app-brand-soft-ink);
+  white-space: nowrap;
 }
 
 .ficha-pos__oferta {

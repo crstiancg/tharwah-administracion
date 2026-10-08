@@ -6,6 +6,7 @@ use App\Models\Archivo;
 use App\Models\Producto;
 use App\Models\Stock;
 use App\Models\Variante;
+use App\Support\Ean13;
 use App\Support\Fechas;
 use App\Support\HtmlSeguro;
 use Closure;
@@ -65,6 +66,10 @@ class StoreProductoRequest extends FormRequest
                 if (is_string($variante['presentacion'] ?? null)) {
                     $variante['presentacion'] = trim($variante['presentacion']);
                 }
+                // Sin espacios ni guiones; un UPC-A de 12 dígitos pasa a EAN-13.
+                if (is_string($variante['codigo_barras'] ?? null)) {
+                    $variante['codigo_barras'] = Ean13::normalizar($variante['codigo_barras']);
+                }
                 // Sin color = presentación sin color (la mayoría).
                 if (($variante['color_id'] ?? null) === '') {
                     $variante['color_id'] = null;
@@ -92,6 +97,10 @@ class StoreProductoRequest extends FormRequest
                 // Precio vacío = usa el precio base del producto.
                 if (($variante['precio'] ?? null) === '') {
                     $variante['precio'] = null;
+                }
+                // Precio por mayor vacío = no tiene (al mayorista, el normal).
+                if (($variante['precio_mayor'] ?? null) === '') {
+                    $variante['precio_mayor'] = null;
                 }
 
                 return $variante;
@@ -154,7 +163,15 @@ class StoreProductoRequest extends FormRequest
                 // (o reusar el de una que se quita) en el mismo guardado.
                 Rule::unique('variantes', 'sku')->where(fn ($q) => $q->where('producto_id', '!=', $producto?->getKey() ?? 0)),
             ];
+            // El de fábrica (el que trae el envase). Lo lee el POS y se imprime en
+            // las etiquetas, que son EAN-13: por eso se exige uno válido.
+            $rules["producto.variantes.{$i}.codigo_barras"] = [
+                'required', 'string', 'regex:/^\d{13}$/', $this->ean13Valido(),
+                $this->codigoUnicoEnElProducto($i),
+                Rule::unique('variantes', 'codigo_barras')->where(fn ($q) => $q->where('producto_id', '!=', $producto?->getKey() ?? 0)),
+            ];
             $rules["producto.variantes.{$i}.precio"] = ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
+            $rules["producto.variantes.{$i}.precio_mayor"] = ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
             $rules["producto.variantes.{$i}.stock_inicial"] = ['nullable', 'numeric', 'min:0', 'max:100000', 'decimal:0,3', $this->stockInicialValido($i)];
             $rules["producto.variantes.{$i}.costo_unitario"] = ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'];
             // Con lotes, el stock inicial entra a un lote (igual que una entrada).
@@ -405,6 +422,34 @@ class StoreProductoRequest extends FormRequest
      * (`variantes.*.sku`) y éstas van por índice. Mismo criterio que
      * combinacionUnica: el error queda en la fila repetida.
      */
+    /**
+     * El dígito verificador ataja un número mal tipeado o mal escaneado.
+     */
+    private function ean13Valido(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) {
+            if (is_string($value) && preg_match('/^\d{13}$/', $value) && ! Ean13::esValido($value)) {
+                $fail('Código de barras inválido: revisá los números (el último dígito no coincide).');
+            }
+        };
+    }
+
+    private function codigoUnicoEnElProducto(int|string $indice): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($indice) {
+            foreach ((array) $this->input('producto.variantes', []) as $i => $otra) {
+                if ($i === $indice) {
+                    return;
+                }
+                if (($otra['codigo_barras'] ?? null) === $value) {
+                    $fail('Código de barras repetido en este producto.');
+
+                    return;
+                }
+            }
+        };
+    }
+
     private function skuUnicoEnElProducto(int|string $indice): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail) use ($indice) {
@@ -451,6 +496,8 @@ class StoreProductoRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'producto.variantes.*.codigo_barras.regex' => 'El código de barras tiene que tener 13 dígitos (EAN-13) o 12 (UPC).',
+            'producto.variantes.*.codigo_barras.unique' => 'Ese código de barras ya lo tiene otro producto.',
             'producto.costo_compra.required' => 'Poné cuánto te costó cada unidad: sin el costo no se puede calcular la ganancia.',
             'producto.variantes.required' => 'Agregá al menos una presentación.',
             'producto.variantes.min' => 'Agregá al menos una presentación.',
@@ -484,6 +531,8 @@ class StoreProductoRequest extends FormRequest
             'producto.variantes.*.sedes.*.stock_minimo' => 'stock mínimo',
             'producto.variantes.*.color_id' => 'color',
             'producto.variantes.*.sku' => 'SKU',
+            'producto.variantes.*.codigo_barras' => 'código de barras',
+            'producto.variantes.*.precio_mayor' => 'precio por mayor',
             'producto.variantes.*.precio' => 'precio',
             'producto.variantes.*.stock_inicial' => 'stock inicial',
             'producto.variantes.*.costo_unitario' => 'costo',

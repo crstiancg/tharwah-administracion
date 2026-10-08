@@ -115,6 +115,18 @@
       @change="form.validate(`${PATH}.direccion`)"
     />
 
+    <div class="cliente-form__mayorista">
+      <q-toggle
+        v-model="form.cliente.mayorista"
+        label="Cliente mayorista (empresa)"
+        color="primary"
+      />
+      <p class="cliente-form__ayuda">
+        Al venderle (punto de venta, pedidos y cotizaciones) se usa el precio por mayor de cada
+        presentación que lo tenga. Las que no lo tienen van a precio normal.
+      </p>
+    </div>
+
     <button
       type="submit"
       hidden
@@ -212,7 +224,8 @@ onMounted(async () => {
       nombre: cliente.nombre,
       telefono: cliente.telefono ?? '',
       email: cliente.email ?? '',
-      direccion: cliente.direccion ?? ''
+      direccion: cliente.direccion ?? '',
+      mayorista: Boolean(cliente.mayorista)
     }
   })
   ultimoConsultado = cliente.numero_documento ?? ''
@@ -232,6 +245,19 @@ defineExpose({ form, submit })
 </script>
 
 <style lang="scss" scoped>
+.cliente-form__mayorista {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cliente-form__ayuda {
+  margin: 0 0 0 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--app-ink-2);
+}
+
 .cliente-form {
   display: flex;
   flex-direction: column;

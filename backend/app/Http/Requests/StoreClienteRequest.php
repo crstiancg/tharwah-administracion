@@ -70,6 +70,7 @@ class StoreClienteRequest extends FormRequest
             'cliente.telefono' => ['nullable', 'string', 'max:20', 'regex:/^[0-9 +()-]{6,20}$/'],
             'cliente.email' => ['nullable', 'email', 'max:120'],
             'cliente.direccion' => ['nullable', 'string', 'max:255'],
+            'cliente.mayorista' => ['sometimes', 'boolean'],
         ];
     }
 

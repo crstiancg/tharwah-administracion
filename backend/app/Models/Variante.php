@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Support\Ean13;
 use App\Support\Fechas;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -18,24 +17,18 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
  * sedes; cada sede la habilita y le pone precio y mínimo en `stocks`.
  * `stock` y `costo_promedio` no son fillable a propósito: sólo los mueve
  * App\Services\Inventario, dejando su movimiento en el libro.
- * `codigo_barras` tampoco: lo asigna el sistema al crear y no cambia nunca
- * (ya está impreso en las etiquetas).
+ * `codigo_barras` es el EAN-13 que registra el usuario (el de fábrica):
+ * obligatorio y único (StoreProductoRequest).
  */
-#[Fillable(['presentacion', 'unidad_id', 'color_id', 'sku', 'precio'])]
+#[Fillable(['presentacion', 'unidad_id', 'color_id', 'sku', 'codigo_barras', 'precio', 'precio_mayor'])]
 class Variante extends Model
 {
-    protected static function booted(): void
-    {
-        // Sale del id, que recién existe después del INSERT.
-        static::created(function (Variante $variante) {
-            $variante->forceFill(['codigo_barras' => Ean13::paraVariante($variante->id)])->saveQuietly();
-        });
-    }
-
     protected function casts(): array
     {
         return [
             'precio' => 'decimal:2',
+            // Venta por mayor a empresas: igual en todas las sedes; null = no tiene.
+            'precio_mayor' => 'decimal:2',
             // float y no decimal:3: el front compara números (stock > 0).
             'stock' => 'float',
             'costo_promedio' => 'decimal:4',

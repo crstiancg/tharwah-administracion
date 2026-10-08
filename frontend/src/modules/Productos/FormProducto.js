@@ -50,7 +50,11 @@ export function nuevaVariante (datos = {}) {
     unidad_id: null,
     color_id: null,
     sku: '',
+    // El de fábrica (EAN-13): lo registra el usuario, el sistema no lo genera.
+    codigo_barras: '',
     precio: '',
+    // Para clientes mayoristas (empresas). Vacío = no tiene.
+    precio_mayor: '',
     stock: 0,
     // [{ sede_id, sede, cantidad }]: el desglose, sólo para mostrar.
     stocks: [],

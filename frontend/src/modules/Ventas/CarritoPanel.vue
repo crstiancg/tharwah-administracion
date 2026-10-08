@@ -170,6 +170,11 @@
               :aria-label="`Precio unitario de ${item.sku}`"
               @click.stop
             >
+            <span
+              v-if="item.por_mayor && item.precio_unitario === item.precio_auto"
+              class="linea__mayor"
+              title="Precio por mayor (cliente mayorista)"
+            >Por mayor</span>
             <span class="linea__total text-mono">
               <s
                 v-if="Number(item.precio_lista) > Number(item.precio_unitario)"
@@ -553,8 +558,8 @@ const estadoCaja = computed(() => {
   if (caja.value.vencida) {
     return { tono: 'error', icono: 'warning', texto: `La caja del ${diaDe(caja.value.abierta_at)} sigue abierta` }
   }
-  if (ahora.value.getHours() >= HORA_AVISO_CIERRE) {
-    return { tono: 'aviso', icono: 'schedule', texto: 'Fin del día: cerrá la caja' }
+  if (ahora.value.getHours() >= (caja.value.hora_aviso_cierre ?? HORA_AVISO_CIERRE)) {
+    return { tono: 'aviso', icono: 'schedule', texto: 'Fin del día: cerrá la caja (a medianoche se cierra sola, sin arqueo)' }
   }
   return { tono: 'ok', icono: 'lock_open', texto: `Caja abierta · ${horaDe(caja.value.abierta_at)}` }
 })
@@ -566,6 +571,9 @@ onMounted(async () => {
 })
 
 // ── Carrito ──
+// Mayorista ↔ no mayorista: el carrito pasa a los precios que le tocan.
+watch(() => pos.cliente?.id, () => pos.aplicarCliente())
+
 // IGV incluido en los precios: el total no cambia, se desglosa.
 const igvCarrito = computed(() => desglosarIgv(pos.total))
 
@@ -814,6 +822,7 @@ defineExpose({ cobrar, enfocarCliente })
 
 .linea__controles {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-top: 6px;
@@ -1076,6 +1085,18 @@ defineExpose({ cobrar, enfocarCliente })
   &--sobra {
     color: var(--q-negative);
   }
+}
+
+.linea__mayor {
+  align-self: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--app-brand-soft);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 17px;
+  color: var(--app-brand-soft-ink);
+  white-space: nowrap;
 }
 
 .carrito__fila--igv {

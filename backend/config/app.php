@@ -75,8 +75,8 @@ return [
     'igv' => (float) env('APP_IGV', 0.18),
 
     // Desde esta hora (de la zona del negocio) se avisa que hay que cerrar la
-    // caja. Mismo valor que HORA_AVISO_CIERRE del front.
-    'hora_aviso_cierre' => (int) env('APP_HORA_AVISO_CIERRE', 19),
+    // caja; a medianoche se cierra sola. El front la recibe con la caja.
+    'hora_aviso_cierre' => (int) env('APP_HORA_AVISO_CIERRE', 23),
 
     /*
     |--------------------------------------------------------------------------

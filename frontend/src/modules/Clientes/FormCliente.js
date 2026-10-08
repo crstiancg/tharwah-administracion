@@ -13,7 +13,9 @@ export default function formCliente () {
       nombre: '',
       telefono: '',
       email: '',
-      direccion: ''
+      direccion: '',
+      // Empresa con precio por mayor.
+      mayorista: false
     }
   }
 }

@@ -3,7 +3,9 @@
 namespace App\Support;
 
 /**
- * Códigos EAN-13 propios de la tienda para las etiquetas de las variantes.
+ * Códigos EAN-13. El de cada presentación lo registra el usuario (el de
+ * fábrica, el que trae el envase); paraVariante() queda para los datos de
+ * demostración y los productos sin código de fábrica.
  *
  * Formato: prefijo "20" + id de la variante en 10 dígitos + verificador.
  * GS1 reserva los prefijos 20-29 para uso interno: nunca chocan con el código
@@ -32,6 +34,25 @@ final class Ean13
         }
 
         return (10 - $suma % 10) % 10;
+    }
+
+    /**
+     * Lo que escribe o escanea el usuario, listo para guardar o buscar: sin
+     * espacios ni guiones, y un UPC-A (12 dígitos, productos importados)
+     * como EAN-13 con un 0 adelante (es el mismo código para el lector).
+     */
+    public static function normalizar(?string $codigo): ?string
+    {
+        if ($codigo === null) {
+            return null;
+        }
+
+        $limpio = preg_replace('/[\s-]+/', '', $codigo);
+        if ($limpio === '') {
+            return null;
+        }
+
+        return preg_match('/^\d{12}$/', $limpio) ? '0'.$limpio : $limpio;
     }
 
     public static function esValido(string $codigo): bool
