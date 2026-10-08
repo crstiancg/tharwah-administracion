@@ -62,7 +62,7 @@ export const useUserStore = defineStore('user', {
       try {
         res = await api.post('oauth/token', {
           grant_type: 'password',
-          client_id: 'ebacc5c8-57de-47a5-895a-08daa99ed8de',
+          client_id: CLIENT_ID,
           client_secret: import.meta.env.VITE_APP_SECRET,
           username: username.trim(),
           password,

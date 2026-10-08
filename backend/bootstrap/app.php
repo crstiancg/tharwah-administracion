@@ -15,6 +15,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Detrás del proxy de Dokploy (Traefik): sin esto las URLs que arma
+        // Laravel (fotos, paginación) saldrían en http.
+        $middleware->trustProxies(at: '*');
+
         $middleware->alias([
             AutorizarPorRuta::ALIAS => AutorizarPorRuta::class,
         ]);
