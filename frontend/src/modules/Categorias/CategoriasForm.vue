@@ -93,6 +93,11 @@ const props = defineProps({
   parentId: {
     type: Number,
     default: null
+  },
+  // Nombre sugerido al crear (lo tipeado en un buscador que no la encontró).
+  nombre: {
+    type: String,
+    default: ''
   }
 })
 
@@ -138,16 +143,17 @@ onMounted(async () => {
   if (categoria) {
     const { nombre, parent_id: parentId } = categoria
     form.setData({ [PATH]: { nombre, parent_id: parentId } })
-  } else if (props.parentId) {
-    form.setData({ [PATH]: { ...form.categoria, parent_id: props.parentId } })
+  } else if (props.parentId || props.nombre) {
+    form.setData({ [PATH]: { ...form.categoria, nombre: props.nombre.trim(), parent_id: props.parentId } })
   }
 })
 
 async function submit () {
   try {
-    await form.submit()
+    const { data } = await form.submit()
     form.reset()
-    emit('save')
+    // La categoría creada/editada, para quien la quiera dejar elegida.
+    emit('save', data)
   } catch {
     // 422: los errores quedan en form.errors y se ven debajo de cada campo.
   }
