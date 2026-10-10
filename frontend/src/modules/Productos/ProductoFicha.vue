@@ -178,6 +178,28 @@
         />
       </div>
 
+      <!-- ── Lo que se olvidó cargar: costo, lote ── -->
+      <div
+        v-if="pendientes.length"
+        class="ficha__pendientes"
+      >
+        <q-icon
+          name="error_outline"
+          size="20px"
+        />
+        <div>
+          <strong>Faltan datos en este producto</strong>
+          <ul>
+            <li
+              v-for="p in pendientes"
+              :key="p"
+            >
+              {{ p }}
+            </li>
+          </ul>
+        </div>
+      </div>
+
       <!-- ── Presentaciones ── -->
       <AppCard class="ficha__bloque">
         <h2 class="ficha__subtitulo">
@@ -291,18 +313,42 @@
 
       <!-- ── Lotes en la sede ── -->
       <AppCard
-        v-if="producto.maneja_lotes && userStore.hasPermission('inventario.lotes')"
+        v-if="userStore.hasPermission('inventario.lotes')"
         class="ficha__bloque"
       >
         <h2 class="ficha__subtitulo">
           Lotes en tu sede
         </h2>
-        <p
-          v-if="!lotes.length"
+
+        <!-- Sin lotes: cómo activarlos. -->
+        <div
+          v-if="!producto.maneja_lotes"
           class="ficha__vacio"
         >
-          No hay lotes con stock. Cada entrada de mercadería crea (o suma a) un lote con su vencimiento.
+          <p>
+            Este producto no controla lotes ni vencimiento. Si vence (cemento, aditivos, pegamentos…),
+            activalo en <strong>Editar → “Maneja lotes y vencimiento”</strong>.
+            <template v-if="stockSede > 0">
+              El stock que ya tenés va a quedar “sin lote” y acá vas a poder asignarle su lote.
+            </template>
+          </p>
+          <AppButton
+            v-if="userStore.hasPermission('productos.update')"
+            variant="secondary"
+            label="Activar lotes"
+            icon="edit"
+            @click="editarDialog = true"
+          />
+        </div>
+
+        <p
+          v-else-if="!lotes.length && !sinLote.length"
+          class="ficha__vacio"
+        >
+          No hay lotes con stock. Se crean al registrar una <strong>Entrada</strong> (botón de arriba):
+          cada una pide el lote y el vencimiento del envase.
         </p>
+
         <div
           v-else
           class="ficha__tablaScroll"
@@ -319,6 +365,33 @@
               </tr>
             </thead>
             <tbody>
+              <!-- Stock que entró antes de activar lotes (p. ej. el inicial). -->
+              <tr
+                v-for="v in sinLote"
+                :key="`sin-${v.id}`"
+                class="ficha__sinLote"
+              >
+                <td>
+                  <AppChip
+                    status="warning"
+                    label="Sin lote"
+                  />
+                </td>
+                <td>{{ v.presentacion }}</td>
+                <td>
+                  <AppButton
+                    v-if="puedeCorregir"
+                    variant="tertiary"
+                    label="Asignar lote"
+                    icon="qr_code_2"
+                    @click="abrirAsignar(v)"
+                  />
+                  <span v-else>—</span>
+                </td>
+                <td class="text-right text-mono">
+                  {{ formatearCantidad(v.cantidadSinLote) }}
+                </td>
+              </tr>
               <tr
                 v-for="lote in lotes"
                 :key="lote.id"
@@ -440,6 +513,30 @@
               >
                 {{ formatearPrecio(props.row.costo_unitario) }} c/u
               </div>
+              <div
+                v-if="faltantes(props.row).length || corregible(props.row)"
+                class="ficha__faltantes"
+              >
+                <AppChip
+                  v-for="f in faltantes(props.row)"
+                  :key="f"
+                  status="warning"
+                  :label="f"
+                />
+                <q-btn
+                  v-if="corregible(props.row)"
+                  flat
+                  dense
+                  round
+                  size="sm"
+                  icon="edit"
+                  color="grey-7"
+                  :aria-label="faltantes(props.row).length ? 'Completar datos' : 'Corregir datos'"
+                  @click="abrirCorregir(props.row)"
+                >
+                  <q-tooltip>{{ faltantes(props.row).length ? 'Completar datos' : 'Corregir costo, factura o lote' }}</q-tooltip>
+                </q-btn>
+              </div>
             </q-td>
           </template>
         </AppTable>
@@ -472,6 +569,61 @@
           label="Registrar"
           :loading="movimientoRef?.form.processing"
           @click="movimientoRef.submit()"
+        />
+      </template>
+    </AppDialog>
+
+    <AppDialog
+      v-model="corregirDialog"
+      title="Completar datos de la entrada"
+      persistent
+    >
+      <CorregirEntradaForm
+        v-if="corregirDialog && aCorregir"
+        ref="corregirRef"
+        :movimiento="aCorregir"
+        :maneja-lotes="producto?.maneja_lotes ?? false"
+        @save="corregida"
+      />
+      <template #actions>
+        <AppButton
+          variant="tertiary"
+          label="Cancelar"
+          @click="corregirDialog = false"
+        />
+        <AppButton
+          variant="primary"
+          label="Guardar"
+          :loading="corregirRef?.procesando"
+          @click="corregirRef.submit()"
+        />
+      </template>
+    </AppDialog>
+
+    <AppDialog
+      v-model="asignarDialog"
+      title="Asignar lote"
+      persistent
+    >
+      <AsignarLoteForm
+        v-if="asignarDialog && aAsignar"
+        ref="asignarRef"
+        :presentacion="aAsignar"
+        :sin-lote="aAsignar.cantidadSinLote"
+        :sede="userStore.sede?.nombre ?? 'tu sede'"
+        @save="loteAsignado"
+      />
+      <template #actions>
+        <AppButton
+          variant="tertiary"
+          label="Cancelar"
+          @click="asignarDialog = false"
+        />
+        <AppButton
+          variant="primary"
+          label="Asignar"
+          :loading="asignarRef?.procesando"
+          @click="asignarRef.submit()"
         />
       </template>
     </AppDialog>
@@ -516,6 +668,8 @@ import AppDialog from '@/components/AppDialog.vue'
 import AppFilterPill from '@/components/AppFilterPill.vue'
 import AppStatTile from '@/components/AppStatTile.vue'
 import AppTable from '@/components/AppTable.vue'
+import AsignarLoteForm from '@/modules/Inventario/AsignarLoteForm.vue'
+import CorregirEntradaForm from '@/modules/Inventario/CorregirEntradaForm.vue'
 import MovimientoForm from '@/modules/Inventario/MovimientoForm.vue'
 import { TIPOS } from '@/modules/Inventario/constantes'
 import InventarioService from '@/services/InventarioService'
@@ -606,6 +760,90 @@ function ganancia (precio, costo) {
 }
 
 const stockEmpresa = computed(() => presentaciones.value.reduce((s, v) => s + Number(v.stock ?? 0), 0))
+
+// ── Datos que faltan ──
+// Stock de la sede que no está en ningún lote: lo que entró antes de
+// activar lotes en el producto (p. ej. el stock inicial).
+const sinLote = computed(() => {
+  if (!producto.value?.maneja_lotes) return []
+  return presentaciones.value
+    .map((v) => {
+      const enLotes = lotes.value
+        .filter((l) => l.variante?.id === v.id)
+        .reduce((s, l) => s + Number(l.cantidad), 0)
+      return { ...v, cantidadSinLote: Math.round((Number(v.sede?.cantidad ?? 0) - enLotes) * 1000) / 1000 }
+    })
+    .filter((v) => v.cantidadSinLote > 0)
+})
+
+const pendientes = computed(() => {
+  const lista = []
+  const sinCosto = veCostos.value ? presentaciones.value.filter((v) => v.costo_promedio === null && Number(v.stock) > 0) : []
+  if (sinCosto.length) {
+    lista.push(`${sinCosto.length === 1 ? '1 presentación' : `${sinCosto.length} presentaciones`} con stock y sin costo de compra (${sinCosto.map((v) => v.presentacion).join(', ')}): completalo con el lápiz en su entrada, abajo en Movimientos.`)
+  }
+  if (sinLote.value.length) {
+    lista.push(`Stock sin lote en tu sede: ${sinLote.value.map((v) => `${formatearCantidad(v.cantidadSinLote)} de ${v.presentacion}`).join(', ')}. Asignáselo en “Lotes en tu sede”.`)
+  }
+  return lista
+})
+
+// ── Completar / corregir una entrada ──
+// Quien registra entradas puede completarlas (mismo permiso en el backend).
+const puedeCorregir = computed(() => userStore.hasPermission('inventario.entradas') || userStore.hasPermission('inventario.corregir'))
+
+// Entradas manuales o de alta de producto; las de una compra se corrigen
+// desde la compra.
+function corregible (row) {
+  return puedeCorregir.value &&
+    row.tipo === 'entrada' &&
+    !row.compra_id &&
+    (row.motivo === null || row.motivo === 'alta_producto')
+}
+
+function faltantes (row) {
+  if (row.tipo !== 'entrada' || row.compra_id || !(row.motivo === null || row.motivo === 'alta_producto')) return []
+  const lista = []
+  if (veCostos.value && row.costo_unitario === null) lista.push('Sin costo')
+  if (!row.referencia) lista.push('Sin factura')
+  if (producto.value?.maneja_lotes) {
+    if (!row.lotes?.length) lista.push('Sin lote')
+    else if (row.lotes.some((l) => !l.vence_at)) lista.push('Sin vencimiento')
+  }
+  return lista
+}
+
+const corregirDialog = ref(false)
+const corregirRef = ref()
+const aCorregir = ref(null)
+
+function abrirCorregir (row) {
+  aCorregir.value = row
+  corregirDialog.value = true
+}
+
+async function corregida () {
+  corregirDialog.value = false
+  $q.notify({ type: 'positive', message: 'Entrada actualizada.', position: 'top-right', timeout: 2000 })
+  await cargar()
+  recargarMovimientos()
+}
+
+// ── Asignar lote al stock sin lote ──
+const asignarDialog = ref(false)
+const asignarRef = ref()
+const aAsignar = ref(null)
+
+function abrirAsignar (v) {
+  aAsignar.value = v
+  asignarDialog.value = true
+}
+
+async function loteAsignado (lote) {
+  asignarDialog.value = false
+  $q.notify({ type: 'positive', message: `Lote ${lote.codigo} asignado.`, position: 'top-right', timeout: 2000 })
+  await cargarLotes()
+}
 
 // ── Saltar a otro producto ──
 const saltarA = ref(null)
@@ -761,6 +999,30 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+.ficha__pendientes {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  // El suave de marca: definido para los dos temas.
+  background: var(--app-brand-soft);
+  color: var(--app-ink);
+  font-size: 13.5px;
+
+  ul {
+    margin: 4px 0 0;
+    padding-left: 18px;
+  }
+}
+
+.ficha__faltantes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
 .ficha__barra {
   display: flex;
   align-items: center;
@@ -929,6 +1191,10 @@ onMounted(async () => {
   margin: 0;
   font-size: 13px;
   color: var(--app-ink-2);
+
+  p {
+    margin: 0 0 10px;
+  }
 }
 
 .ficha__tablaScroll {

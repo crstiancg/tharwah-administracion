@@ -68,6 +68,8 @@ Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
         Route::post('inventario/salidas', [InventarioController::class, 'salidas'])->name('inventario.salidas');
         Route::post('inventario/ajustes', [InventarioController::class, 'ajustes'])->name('inventario.ajustes');
         Route::post('inventario/traslados', [InventarioController::class, 'traslados'])->name('inventario.traslados');
+        Route::patch('inventario/movimientos/{movimiento}', [InventarioController::class, 'corregir'])->name('inventario.corregir');
+        Route::post('inventario/lotes/asignar', [InventarioController::class, 'asignarLote'])->name('inventario.asignar-lote');
 
         // Va antes del resource: si no, {cliente} captura "consultar-documento".
         Route::get('clientes/consultar-documento', [ClienteController::class, 'consultarDocumento'])

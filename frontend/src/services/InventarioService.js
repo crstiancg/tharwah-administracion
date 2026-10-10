@@ -15,6 +15,16 @@ class InventarioService {
     return (await api.get('api/inventario/lotes', config)).data
   }
 
+  // Completa lo que le faltó a una entrada (costo, referencia, lotes).
+  static async corregirEntrada (id, entrada) {
+    return (await api.patch(`api/inventario/movimientos/${id}`, { entrada })).data
+  }
+
+  // Le da lote al stock que quedó sin lote en la sede del usuario.
+  static async asignarLote (lote) {
+    return (await api.post('api/inventario/lotes/asignar', { lote })).data
+  }
+
   // Buscador de variantes para las líneas de un movimiento.
   static async variantes (config) {
     return (await api.get('api/inventario/variantes', config)).data

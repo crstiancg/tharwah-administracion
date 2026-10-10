@@ -65,6 +65,10 @@ return [
         // Los formularios de pedidos buscan variantes y clientes.
         // La salida manual elige de qué lote sacar.
         'inventario.lotes' => ['inventario.salidas'],
+        // Quien registra entradas completa lo que le faltó a una (costo,
+        // factura, lote) y le da lote al stock que quedó sin lote.
+        'inventario.corregir' => ['inventario.entradas'],
+        'inventario.asignar-lote' => ['inventario.entradas'],
         'clientes.index' => ['pedidos.store', 'pedidos.update', 'ventas.store', 'cotizaciones.store', 'cotizaciones.update'],
         'clientes.show' => ['clientes.update'],
         'proveedores.show' => ['proveedores.update'],
@@ -127,6 +131,8 @@ return [
         'ajustes' => 'Ajustar por conteo',
         'traslados' => 'Trasladar entre sedes',
         'lotes' => 'Ver lotes y vencimientos',
+        'corregir' => 'Completar datos de una entrada',
+        'asignar-lote' => 'Asignar lote al stock sin lote',
         'cambiar-sede' => 'Cambiar de sede',
         'variantes' => 'Buscar presentaciones',
         'consultar-documento' => 'Consultar DNI/RUC',

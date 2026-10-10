@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\AsignarLoteRequest;
+use App\Http\Requests\CorregirEntradaRequest;
 use App\Http\Requests\RegistrarAjusteRequest;
 use App\Http\Requests\RegistrarEntradaRequest;
 use App\Http\Requests\RegistrarSalidaRequest;
@@ -22,7 +24,8 @@ use Illuminate\Http\Request;
 
 /**
  * Libro de inventario: se consulta y se le agregan movimientos. No hay
- * update ni destroy: un movimiento mal cargado se corrige con otro.
+ * destroy y la cantidad no se edita: un movimiento mal cargado se corrige
+ * con otro. De una entrada sí se completan costo, referencia y lotes.
  */
 class InventarioController extends Controller
 {
@@ -205,6 +208,44 @@ class InventarioController extends Controller
             $movimiento['observacion'] ?? null,
             $request->user(),
         ));
+    }
+
+    /**
+     * Completa lo que se olvidó cargar en una entrada manual o de alta de
+     * producto. La de una compra se corrige desde la compra.
+     */
+    public function corregir(CorregirEntradaRequest $request, MovimientoInventario $movimiento): JsonResponse
+    {
+        $corregible = $movimiento->tipo === MovimientoInventario::ENTRADA
+            && $movimiento->compra_id === null
+            && in_array($movimiento->motivo, [null, MovimientoInventario::MOTIVO_ALTA_PRODUCTO], true);
+
+        if (! $corregible) {
+            return response()->json(['message' => 'Sólo se corrigen entradas manuales o de alta de producto.'], 409);
+        }
+
+        $movimiento = $this->inventario->corregirEntrada($movimiento, $request->validated('entrada', []));
+        $movimiento->load([...self::RELACIONES, 'usuario:id,name', 'sede:id,nombre', 'sedeRelacionada:id,nombre']);
+
+        return response()->json(new MovimientoResource($movimiento));
+    }
+
+    /**
+     * Le da lote al stock que quedó sin lote en la sede del usuario.
+     */
+    public function asignarLote(AsignarLoteRequest $request): JsonResponse
+    {
+        $datos = $request->validated('lote');
+        $variante = Variante::query()->with('producto:id,maneja_lotes')->findOrFail($datos['variante_id']);
+
+        if (! $variante->producto->maneja_lotes) {
+            return response()->json(['message' => 'Este producto no maneja lotes: activalo primero editando el producto.'], 409);
+        }
+
+        $lote = $this->inventario->asignarLote($variante->id, $request->user()->sedeOperativa(), $datos['codigo'], $datos['vence_at'] ?? null, (float) $datos['cantidad']);
+        $lote->load(['sede:id,nombre', 'variante.producto:id,nombre', 'variante.unidad:id,abreviatura', 'variante.color:id,nombre,hexadecimal']);
+
+        return response()->json(new LoteResource($lote), 201);
     }
 
     /**
