@@ -18,6 +18,8 @@
     <AppFilterBar
       v-model:search="search"
       search-placeholder="Buscar por razón social, RUC o contacto"
+      :refreshing="loading"
+      @refresh="tableRef.actualizar()"
     />
 
     <AppTable

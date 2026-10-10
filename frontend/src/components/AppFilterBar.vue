@@ -17,12 +17,29 @@
          les da el layout y el buscador. -->
     <slot />
 
-    <div
-      v-if="hasActiveFilters"
-      class="app-filter-bar__clear"
-      @click="$emit('clear')"
-    >
-      Limpiar filtros
+    <div class="app-filter-bar__end">
+      <div
+        v-if="hasActiveFilters"
+        class="app-filter-bar__clear"
+        @click="$emit('clear')"
+      >
+        Limpiar filtros
+      </div>
+
+      <!-- Trae de nuevo la data de la BD (lo que cargó otro usuario) sin
+           recargar la página con F5. Sólo si la lista escucha @refresh. -->
+      <q-btn
+        v-if="onRefresh"
+        flat
+        round
+        icon="refresh"
+        color="grey-7"
+        :loading="refreshing"
+        aria-label="Actualizar"
+        @click="onRefresh"
+      >
+        <q-tooltip>Actualizar</q-tooltip>
+      </q-btn>
     </div>
   </div>
 </template>
@@ -39,6 +56,19 @@ defineProps({
   hasActiveFilters: {
     type: Boolean,
     default: false
+  },
+
+  // Gira el botón ⟳ mientras la lista está pidiendo los datos.
+  refreshing: {
+    type: Boolean,
+    default: false
+  },
+
+  // @refresh declarado como prop (y no en defineEmits) para saber si la
+  // lista lo escucha y mostrar el botón sólo entonces.
+  onRefresh: {
+    type: Function,
+    default: null
   }
 })
 
@@ -68,8 +98,14 @@ const search = defineModel('search', { default: '' })
   }
 }
 
-.app-filter-bar__clear {
+.app-filter-bar__end {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-filter-bar__clear {
   font-size: 13px;
   font-weight: 600;
   color: var(--app-ink-2);

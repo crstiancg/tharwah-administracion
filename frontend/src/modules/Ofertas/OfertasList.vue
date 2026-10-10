@@ -19,7 +19,9 @@
       v-model:search="search"
       search-placeholder="Buscar por nombre, producto o categoría"
       :has-active-filters="hayFiltros"
+      :refreshing="loading"
       @clear="limpiarFiltros"
+      @refresh="tableRef.actualizar()"
     >
       <AppFilterPill
         v-model="estadoFilter"

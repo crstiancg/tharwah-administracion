@@ -19,7 +19,9 @@
       v-model:search="search"
       search-placeholder="Buscar por código, cliente o documento"
       :has-active-filters="hayFiltros"
+      :refreshing="loading"
       @clear="limpiarFiltros"
+      @refresh="tableRef.actualizar()"
     >
       <AppFilterPill
         v-model="estadoFilter"

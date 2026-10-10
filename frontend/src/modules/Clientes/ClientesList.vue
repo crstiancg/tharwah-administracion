@@ -18,6 +18,8 @@
     <AppFilterBar
       v-model:search="search"
       search-placeholder="Buscar por nombre, documento o teléfono"
+      :refreshing="loading"
+      @refresh="tableRef.actualizar()"
     />
 
     <AppTable

@@ -9,7 +9,9 @@
       v-model:search="search"
       search-placeholder="Buscar por producto o SKU"
       :has-active-filters="hayFiltros"
+      :refreshing="loading"
       @clear="limpiarFiltros"
+      @refresh="tableRef.actualizar()"
     >
       <AppFilterPill
         v-if="sedes.length > 1"
@@ -28,6 +30,7 @@
       :filter="filtroTabla"
       no-data-label="Nada por reponer: todo está sobre su stock mínimo."
       @request="onRequest"
+      @refresh="cargarSedes"
     >
       <template #body-cell-producto="props">
         <q-td :props="props">
@@ -135,11 +138,16 @@ async function onRequest ({ pagination: requested }) {
   }
 }
 
-onMounted(async () => {
-  tableRef.value.requestServerInteraction()
+// Opciones del filtro de sede; también con el botón ⟳ de la tabla.
+async function cargarSedes () {
   if (userStore.hasPermission('sedes.index')) {
     sedes.value = await SedeService.activas()
   }
+}
+
+onMounted(() => {
+  tableRef.value.requestServerInteraction()
+  cargarSedes()
 })
 </script>
 

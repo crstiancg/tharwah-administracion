@@ -77,7 +77,9 @@
       v-model:search="search"
       search-placeholder="Buscar por producto, SKU o código de barras"
       :has-active-filters="hayFiltros"
+      :refreshing="loading"
       @clear="limpiarFiltros"
+      @refresh="tableRef.actualizar()"
     >
       <q-chip
         v-if="productoFiltro"

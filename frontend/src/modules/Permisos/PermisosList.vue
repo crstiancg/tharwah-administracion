@@ -20,6 +20,8 @@
     <AppFilterBar
       v-model:search="search"
       search-placeholder="Buscar por ruta o descripción"
+      :refreshing="loading"
+      @refresh="tableRef.actualizar()"
     />
 
     <AppTable

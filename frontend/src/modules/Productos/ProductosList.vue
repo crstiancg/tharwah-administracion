@@ -19,7 +19,9 @@
       v-model:search="search"
       search-placeholder="Buscar por nombre o SKU"
       :has-active-filters="hayFiltros"
+      :refreshing="loading"
       @clear="limpiarFiltros"
+      @refresh="tableRef.actualizar()"
     >
       <AppFilterPill
         v-model="categoriaFilter"
@@ -53,6 +55,7 @@
       :filter="filtroTabla"
       no-data-label="Ningún producto coincide con los filtros aplicados."
       @request="onRequest"
+      @refresh="cargarCatalogos"
     >
       <template #body-cell-nombre="props">
         <q-td :props="props">
@@ -346,8 +349,8 @@ async function onRequest ({ pagination: requested }) {
   }
 }
 
-onMounted(async () => {
-  tableRef.value.requestServerInteraction()
+// Opciones de los filtros; también con el botón ⟳ de la tabla.
+async function cargarCatalogos () {
   const [c, m, s] = await Promise.all([
     CategoriaService.getData({ params: { rowsPerPage: 0 } }),
     MarcaService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } }),
@@ -356,6 +359,11 @@ onMounted(async () => {
   categorias.value = c.data
   marcas.value = m.data
   sedes.value = s
+}
+
+onMounted(() => {
+  tableRef.value.requestServerInteraction()
+  cargarCatalogos()
 })
 
 // ── Crear / editar en diálogo ──

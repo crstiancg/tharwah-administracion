@@ -136,7 +136,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['request'])
+const emit = defineEmits(['request', 'refresh'])
 
 // v-model con default: quien use la tabla sólo declara `rows`/`columns` si
 // no le importa controlar página o selección desde afuera. Quien sí
@@ -221,6 +221,15 @@ function requestServerInteraction () {
   requestPage({ ...paginationModel.value })
 }
 
+// Botón ⟳ de AppFilterBar (la lista lo conecta con tableRef.actualizar()):
+// vuelve a traer la página actual de la BD sin perder filtros ni página, y
+// con @refresh avisa para recargar lo que la lista cargó aparte en su
+// onMounted (catálogos de los filtros: categorías, sedes…).
+function actualizar () {
+  requestServerInteraction()
+  emit('refresh')
+}
+
 // En modo servidor QTable emite `request` al ordenar por una columna en vez
 // de ordenar local; se reenvía con el filtro actual.
 function onTableRequest ({ pagination }) {
@@ -239,7 +248,7 @@ watch(() => props.rows, () => {
   if (!serverSide.value) goToPage(1)
 })
 
-defineExpose({ requestServerInteraction })
+defineExpose({ requestServerInteraction, actualizar })
 </script>
 
 <style lang="scss" scoped>
