@@ -138,6 +138,13 @@
         Representación impresa de la {{ electronico.tipo === '01' ? 'Factura Electrónica' : 'Boleta de Venta Electrónica' }}.
         Consulte su validez en www.sunat.gob.pe
       </div>
+      <!-- SVG armado por el backend (bacon-qr-code): sólo rutas, sin texto
+           tipeado por nadie, por eso va con v-html. -->
+      <div
+        v-if="electronico.qr_svg"
+        class="ticket__qr"
+        v-html="electronico.qr_svg"
+      />
       <div
         v-if="electronico.hash"
         class="ticket__centro ticket__chico"
@@ -250,6 +257,17 @@ const pagosCobro = computed(() => (props.pedido.pagos ?? []).filter((p) => !p.es
 .ticket__chico {
   font-size: 10px;
   word-break: break-all;
+}
+
+.ticket__qr {
+  width: 30mm;
+  margin: 6px auto 4px;
+
+  :deep(svg) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
 }
 
 .ticket__total {

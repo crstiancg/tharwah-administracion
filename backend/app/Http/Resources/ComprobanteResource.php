@@ -48,6 +48,8 @@ class ComprobanteResource extends JsonResource
             'sunat_codigo' => $this->sunat_codigo,
             'sunat_mensaje' => $this->sunat_mensaje,
             'hash' => $this->hash,
+            // QR de la representación impresa, como SVG.
+            'qr_svg' => $this->qrSvg(),
             'tiene_xml' => (bool) $this->xml_path,
             'tiene_cdr' => (bool) $this->cdr_path,
             'sede' => $this->whenLoaded('sede', fn () => $this->sede?->only(['id', 'nombre'])),
