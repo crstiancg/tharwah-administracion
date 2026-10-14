@@ -141,7 +141,7 @@ body.body--dark {
 }
 
 // ── Etiquetas con código de barras (ImpresionEtiquetas.vue) ──
-// Mismo mecanismo que el ticket. El rollo usa el @page de 80 mm de abajo; las
+// Mismo mecanismo que el ticket. El rollo usa el @page sin tamaño de abajo; las
 // hojas A4 piden su propia página con nombre (named page), así un formato no
 // le cambia el tamaño de papel al otro.
 @page etiquetas-a4 {
@@ -186,9 +186,10 @@ body.body--dark {
 }
 
 @media print {
-  // La ticketera corta a medida: sin márgenes del navegador y alto libre.
+  // Sin tamaño forzado: el papel lo pone el driver de la impresora elegida
+  // (la ticketera ya ajusta el rollo sola). Forzar 80 mm chocaba con el
+  // driver y salía la hoja en blanco. Solo se quitan los márgenes del navegador.
   @page {
-    size: 80mm auto;
     margin: 0;
   }
 

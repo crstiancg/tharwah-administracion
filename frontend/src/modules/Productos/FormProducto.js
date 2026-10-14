@@ -20,8 +20,9 @@ export default function formProducto (editando = false) {
       descripcion: '',
       precio: '',
       activo: true,
-      // Con lotes, cada entrada pide lote y vencimiento.
-      maneja_lotes: false,
+      // Con lotes, cada entrada pide lote y vencimiento. Prendido por defecto:
+      // en materiales de construcción casi todo vence (cemento, aditivos…).
+      maneja_lotes: true,
       // Stock inicial de las presentaciones nuevas: entra como una entrada de
       // inventario ("Alta de producto") con este costo (ajustable por fila).
       costo_compra: '',

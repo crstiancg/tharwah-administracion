@@ -372,8 +372,11 @@ class StoreProductoRequest extends FormRequest
     private function lotesSinStock(?Producto $producto): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail) use ($producto) {
-            if ($producto && (bool) $value !== $producto->maneja_lotes && $producto->variantes()->where('stock', '!=', 0)->exists()) {
-                $fail('Sólo se puede cambiar el manejo de lotes con el producto sin stock.');
+            // Prenderlo con stock se puede: ese stock queda "sin lote" y la
+            // ficha del producto pide asignárselo. Apagarlo no: dejaría lotes
+            // con cantidad colgados de un producto que ya no los usa.
+            if ($producto && $producto->maneja_lotes && ! (bool) $value && $producto->variantes()->where('stock', '!=', 0)->exists()) {
+                $fail('Sólo se puede desactivar el manejo de lotes con el producto sin stock.');
             }
         };
     }

@@ -9,7 +9,9 @@
       v-model:search="search"
       search-placeholder="Buscar por producto, SKU o lote"
       :has-active-filters="hayFiltros"
+      :refreshing="loading"
       @clear="limpiarFiltros"
+      @refresh="tableRef.actualizar()"
     >
       <AppFilterPill
         v-model="estadoFilter"
@@ -33,6 +35,7 @@
       :filter="filtroTabla"
       no-data-label="No hay lotes que coincidan."
       @request="onRequest"
+      @refresh="cargarSedes"
     >
       <template #body-cell-producto="props">
         <q-td :props="props">
@@ -164,11 +167,16 @@ async function onRequest ({ pagination: requested }) {
   }
 }
 
-onMounted(async () => {
-  tableRef.value.requestServerInteraction()
+// Opciones del filtro de sede; también con el botón ⟳ de la tabla.
+async function cargarSedes () {
   if (userStore.hasPermission('sedes.index')) {
     sedes.value = await SedeService.activas()
   }
+}
+
+onMounted(() => {
+  tableRef.value.requestServerInteraction()
+  cargarSedes()
 })
 </script>
 

@@ -25,6 +25,7 @@
           class="producto-form__label"
         >Categoría</label>
         <q-select
+          ref="categoriaSelectRef"
           v-model="form.producto.categoria_id"
           :options="categoriasFiltradas"
           :aria-labelledby="`${uid}-categoria`"
@@ -56,6 +57,43 @@
             <q-item>
               <q-item-section class="text-grey">
                 No hay categorías que coincidan.
+              </q-item-section>
+            </q-item>
+            <q-item
+              v-if="puedeCrearCategoria"
+              clickable
+              @click="crearCategoria"
+            >
+              <q-item-section avatar>
+                <q-icon
+                  name="add"
+                  color="primary"
+                />
+              </q-item-section>
+              <q-item-section class="text-primary">
+                Crear categoría “{{ busquedaCategoria.trim() }}”
+              </q-item-section>
+            </q-item>
+          </template>
+          <!-- Con coincidencias parciales ("Pintura" encuentra "Pinturas
+               látex") también se ofrece crear la que se tipeó. -->
+          <template
+            v-if="puedeCrearCategoria && categoriasFiltradas.length"
+            #after-options
+          >
+            <q-separator />
+            <q-item
+              clickable
+              @click="crearCategoria"
+            >
+              <q-item-section avatar>
+                <q-icon
+                  name="add"
+                  color="primary"
+                />
+              </q-item-section>
+              <q-item-section class="text-primary">
+                Crear categoría “{{ busquedaCategoria.trim() }}”
               </q-item-section>
             </q-item>
           </template>
@@ -122,18 +160,19 @@
         class="producto-form__toggle"
       />
 
-      <!-- Cambiarlo con stock dejaría unidades sin lote: el backend lo
-           rechaza y acá se avisa antes. -->
+      <!-- Prenderlo con stock se puede (ese stock queda "sin lote" y la ficha
+           pide asignarlo); apagarlo con stock no: el backend lo rechaza y
+           acá se avisa antes. -->
       <q-toggle
         v-model="form.producto.maneja_lotes"
         label="Maneja lotes y vencimiento"
         color="primary"
         class="producto-form__toggle"
-        :disable="tieneStock"
+        :disable="noSePuedeApagarLotes"
         @update:model-value="form.validate(`${PATH}.maneja_lotes`)"
       >
-        <q-tooltip v-if="tieneStock">
-          Sólo se puede cambiar con el producto sin stock
+        <q-tooltip v-if="noSePuedeApagarLotes">
+          Sólo se puede desactivar con el producto sin stock
         </q-tooltip>
       </q-toggle>
     </div>
@@ -859,6 +898,33 @@
       type="submit"
       hidden
     />
+
+    <!-- Alta rápida de la categoría que no estaba: al guardar queda elegida. -->
+    <AppDialog
+      v-model="categoriaDialog"
+      title="Nueva categoría"
+      persistent
+    >
+      <CategoriasForm
+        ref="categoriaFormRef"
+        :nombre="nombreNuevaCategoria"
+        @save="categoriaCreada"
+      />
+
+      <template #actions>
+        <AppButton
+          variant="tertiary"
+          label="Cancelar"
+          @click="categoriaDialog = false"
+        />
+        <AppButton
+          variant="primary"
+          label="Guardar"
+          :loading="categoriaFormRef?.form.processing"
+          @click="categoriaFormRef.submit()"
+        />
+      </template>
+    </AppDialog>
   </form>
 </template>
 
@@ -866,6 +932,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useForm } from 'laravel-precognition-vue'
 import AppButton from '@/components/AppButton.vue'
+import AppDialog from '@/components/AppDialog.vue'
 import AppFotos from '@/components/AppFotos.vue'
 import AppTextField from '@/components/AppTextField.vue'
 import CategoriaService from '@/services/CategoriaService'
@@ -878,6 +945,7 @@ import { useUserStore } from '@/stores/user-store'
 import { formatearCantidad } from '@/utils/cantidad'
 import { formatearPrecio } from '@/utils/moneda'
 import { opcionesPadre } from '@/modules/Categorias/arbol'
+import CategoriasForm from '@/modules/Categorias/CategoriasForm.vue'
 import formProducto, { nuevaVariante } from './FormProducto'
 import { sugerirSku } from './sku'
 
@@ -959,6 +1027,33 @@ const categoriasFiltradas = computed(() => {
 
 function filtrarCategorias (valor, update) {
   update(() => { busquedaCategoria.value = valor })
+}
+
+// ── Crear la categoría desde el buscador ──
+// Se ofrece si se tipeó algo que no es exactamente una que ya existe.
+const puedeCrearCategoria = computed(() => {
+  const termino = busquedaCategoria.value.trim().toLowerCase()
+  return Boolean(termino) &&
+    userStore.hasPermission('categorias.store') &&
+    !categorias.value.some((c) => c.nombre.toLowerCase() === termino)
+})
+
+const categoriaSelectRef = ref(null)
+const categoriaFormRef = ref(null)
+const categoriaDialog = ref(false)
+const nombreNuevaCategoria = ref('')
+
+function crearCategoria () {
+  nombreNuevaCategoria.value = busquedaCategoria.value
+  categoriaSelectRef.value.hidePopup()
+  categoriaDialog.value = true
+}
+
+function categoriaCreada (categoria) {
+  categorias.value.push(categoria)
+  form.producto.categoria_id = categoria.id
+  form.validate(`${PATH}.categoria_id`)
+  categoriaDialog.value = false
 }
 
 // Las marcas inactivas no se ofrecen, salvo la que ya tiene el producto.
@@ -1089,6 +1184,9 @@ watch(() => form.producto.maneja_lotes, (conLotes) => {
 })
 
 const tieneStock = computed(() => form.producto.variantes.some((v) => Number(v.stock) !== 0))
+// Cómo estaba guardado: con stock se puede prender, pero no apagar.
+const lotesGuardado = ref(false)
+const noSePuedeApagarLotes = computed(() => tieneStock.value && lotesGuardado.value)
 
 // ── Stock inicial (sólo variantes nuevas) ──
 const hayNuevas = computed(() => form.producto.variantes.some((v) => !v.id))
@@ -1186,6 +1284,7 @@ onMounted(async () => {
   }
 
   const { nombre, categoria_id: categoriaId, marca_id: marcaId, descripcion, precio, activo, maneja_lotes: manejaLotes, archivos, variantes } = producto
+  lotesGuardado.value = manejaLotes
 
   form.setData({
     _method: 'PUT',

@@ -390,14 +390,158 @@ class Inventario
 
         if ($falta > self::EPSILON) {
             $vigente = $disponibles->sum('cantidad');
-            $errores["movimiento.lineas.{$i}.cantidad"] = $vencidos
-                ? 'Stock insuficiente en los lotes: hay '.self::formatear($vigente).'.'
-                : 'Sólo hay '.self::formatear($vigente).' sin vencer: lo demás está vencido (sacalo como merma).';
+            $hayVencidos = ! $vencidos && $lotes->contains(fn (Lote $l) => $l->cantidad > self::EPSILON && $l->vencido());
+            // Sin vencidos que expliquen la diferencia, es stock que quedó
+            // sin lote (entró antes de activar lotes en el producto).
+            $errores["movimiento.lineas.{$i}.cantidad"] = $hayVencidos
+                ? 'Sólo hay '.self::formatear($vigente).' sin vencer: lo demás está vencido (sacalo como merma).'
+                : 'Sólo hay '.self::formatear($vigente).' en lotes. Si hay stock sin lote, asignáselo en la ficha del producto (Lotes en tu sede).';
 
             return null;
         }
 
         return $asignacion;
+    }
+
+    /**
+     * Completa o corrige los datos de una entrada que no mueven stock: costo
+     * unitario, referencia (n° de factura / guía) y el código y vencimiento
+     * de sus lotes. Para lo que se olvidó cargar; la cantidad no se toca.
+     *
+     * Cambiar el costo recalcula el costo promedio de la presentación desde
+     * su historial. Las ventas ya hechas guardan el costo de su momento y no
+     * cambian.
+     *
+     * @param  array{costo_unitario?: float|string|null, referencia?: ?string, lotes?: array<int, array{id: int, codigo: string, vence_at: ?string}>}  $datos
+     */
+    public function corregirEntrada(MovimientoInventario $movimiento, array $datos): MovimientoInventario
+    {
+        return DB::transaction(function () use ($movimiento, $datos) {
+            $variante = Variante::query()->lockForUpdate()->findOrFail($movimiento->variante_id);
+
+            if (array_key_exists('costo_unitario', $datos)) {
+                $movimiento->costo_unitario = $datos['costo_unitario'] !== null ? round((float) $datos['costo_unitario'], 2) : null;
+            }
+            if (array_key_exists('referencia', $datos)) {
+                $movimiento->referencia = filled($datos['referencia']) ? trim($datos['referencia']) : null;
+            }
+
+            $costoCambio = $movimiento->isDirty('costo_unitario');
+            $movimiento->save();
+
+            $errores = [];
+            foreach ($datos['lotes'] ?? [] as $i => $dato) {
+                /** @var Lote|null $lote */
+                $lote = $movimiento->lotes()->whereKey($dato['id'])->first();
+                if (! $lote) {
+                    $errores["entrada.lotes.{$i}.codigo"] = 'Ese lote no es de esta entrada.';
+
+                    continue;
+                }
+
+                $codigo = self::normalizarLote($dato['codigo']);
+                $repetido = Lote::query()
+                    ->where('variante_id', $lote->variante_id)
+                    ->where('sede_id', $lote->sede_id)
+                    ->where('codigo', $codigo)
+                    ->whereKeyNot($lote->id)
+                    ->exists();
+                if ($repetido) {
+                    $errores["entrada.lotes.{$i}.codigo"] = "Ya hay otro lote {$codigo} de esta presentación en la sede.";
+
+                    continue;
+                }
+
+                $lote->forceFill([
+                    'codigo' => $codigo,
+                    'vence_at' => filled($dato['vence_at'] ?? null) ? Carbon::parse($dato['vence_at'])->startOfDay() : null,
+                ])->save();
+            }
+
+            if ($errores) {
+                throw ValidationException::withMessages($errores);
+            }
+
+            if ($costoCambio) {
+                $variante->costo_promedio = $this->costoPromedioDesdeHistorial($variante);
+                $variante->save();
+            }
+
+            return $movimiento->refresh();
+        });
+    }
+
+    /**
+     * Le da lote a stock que no lo tiene: lo que entró antes de activar lotes
+     * en el producto (p. ej. el stock inicial). No mueve stock ni crea un
+     * movimiento: sólo reparte lo que ya hay en la sede entre lotes. Si el
+     * código ya existe, suma a ese lote.
+     */
+    public function asignarLote(int $varianteId, int $sedeId, string $codigo, ?string $venceAt, float $cantidad): Lote
+    {
+        return DB::transaction(function () use ($varianteId, $sedeId, $codigo, $venceAt, $cantidad) {
+            $stock = Stock::query()->where('variante_id', $varianteId)->where('sede_id', $sedeId)->lockForUpdate()->first();
+            $lotes = Lote::query()->where('variante_id', $varianteId)->where('sede_id', $sedeId)->lockForUpdate()->get();
+
+            $sinLote = round((float) ($stock?->cantidad ?? 0) - (float) $lotes->sum('cantidad'), 3);
+            $cantidad = round($cantidad, 3);
+
+            if ($sinLote < self::EPSILON) {
+                throw ValidationException::withMessages(['lote.cantidad' => 'Todo el stock de esta presentación en la sede ya tiene lote.']);
+            }
+            if ($cantidad - $sinLote > self::EPSILON) {
+                throw ValidationException::withMessages(['lote.cantidad' => 'Sólo hay '.self::formatear($sinLote).' sin lote.']);
+            }
+
+            $codigo = self::normalizarLote($codigo);
+            $vence = filled($venceAt) ? Carbon::parse($venceAt)->startOfDay() : null;
+            $lote = $lotes->first(fn (Lote $l) => $l->codigo === $codigo);
+
+            if ($lote && $vence && $lote->vence_at && ! $lote->vence_at->equalTo($vence)) {
+                throw ValidationException::withMessages(['lote.codigo' => "El lote {$codigo} ya está registrado con vencimiento {$lote->vence_at->format('d/m/Y')}."]);
+            }
+
+            $lote ??= (new Lote)->forceFill([
+                'variante_id' => $varianteId,
+                'sede_id' => $sedeId,
+                'codigo' => $codigo,
+                'cantidad' => 0,
+            ]);
+            $lote->forceFill([
+                'vence_at' => $lote->vence_at ?? $vence,
+                'cantidad' => round((float) $lote->cantidad + $cantidad, 3),
+            ])->save();
+
+            return $lote;
+        });
+    }
+
+    /**
+     * Repite, movimiento por movimiento, el mismo promedio ponderado que hace
+     * entrada(): el stock de la empresa es la suma de lo movido hasta ahí.
+     */
+    private function costoPromedioDesdeHistorial(Variante $variante): ?float
+    {
+        $stock = 0.0;
+        $costo = null;
+
+        $movimientos = MovimientoInventario::query()
+            ->where('variante_id', $variante->id)
+            ->orderBy('id')
+            ->get(['tipo', 'cantidad', 'costo_unitario']);
+
+        foreach ($movimientos as $m) {
+            if ($m->tipo === MovimientoInventario::ENTRADA && $m->costo_unitario !== null) {
+                $total = max(0.0, $stock);
+                $unitario = (float) $m->costo_unitario;
+                $costo = $costo === null || $total < self::EPSILON
+                    ? $unitario
+                    : round((($total * $costo) + ($m->cantidad * $unitario)) / ($total + $m->cantidad), 4);
+            }
+            $stock += $m->cantidad;
+        }
+
+        return $costo;
     }
 
     /**

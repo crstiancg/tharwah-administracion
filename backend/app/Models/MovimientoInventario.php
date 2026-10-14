@@ -9,9 +9,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use LogicException;
 
 /**
- * Una línea del libro de inventario. INMUTABLE: se crea y nunca se edita ni se
- * borra. Si algo se cargó mal, se corrige con otro movimiento (una salida que
- * compense una entrada de más): así el historial siempre explica el stock.
+ * Una línea del libro de inventario. INMUTABLE en lo que mueve stock: se crea
+ * y nunca se borra, y una cantidad mal cargada se corrige con otro movimiento
+ * (una salida que compense una entrada de más): así el historial siempre
+ * explica el stock. Lo único editable son los datos de una entrada que no
+ * cambian el stock (CORREGIBLES), para completar lo que se olvidó cargar.
  *
  * Se crea sólo a través de App\Services\Inventario, que mueve el stock de la
  * variante en la misma transacción.
@@ -72,7 +74,10 @@ class MovimientoInventario extends Model
         };
     }
 
-    // Sólo created_at: un movimiento no se actualiza.
+    /** Lo que Inventario::corregirEntrada() puede cambiar (no mueve stock). */
+    public const CORREGIBLES = ['costo_unitario', 'referencia'];
+
+    // Sólo created_at: las correcciones no cambian cuándo entró la mercadería.
     public const UPDATED_AT = null;
 
     protected function casts(): array
@@ -87,7 +92,11 @@ class MovimientoInventario extends Model
 
     protected static function booted(): void
     {
-        static::updating(fn () => throw new LogicException('Los movimientos de inventario no se editan: registrá otro que lo corrija.'));
+        static::updating(function (MovimientoInventario $movimiento) {
+            if (array_diff(array_keys($movimiento->getDirty()), self::CORREGIBLES)) {
+                throw new LogicException('Los movimientos de inventario no se editan: registrá otro que lo corrija.');
+            }
+        });
         static::deleting(fn () => throw new LogicException('Los movimientos de inventario no se borran: registrá otro que lo corrija.'));
     }
 

@@ -20,7 +20,9 @@
       v-model:search="search"
       search-placeholder="Buscar por SKU, producto o referencia"
       :has-active-filters="hayFiltros"
+      :refreshing="loading"
       @clear="limpiarFiltros"
+      @refresh="tableRef.actualizar()"
     >
       <AppFilterPill
         v-model="sedeFilter"
@@ -43,6 +45,7 @@
       :filter="filtroTabla"
       no-data-label="Todavía no hay movimientos que coincidan."
       @request="onRequest"
+      @refresh="cargarSedes"
     >
       <template #body-cell-fecha="props">
         <q-td
@@ -267,11 +270,16 @@ async function onRequest ({ pagination: requested }) {
   }
 }
 
-onMounted(async () => {
-  tableRef.value.requestServerInteraction()
+// Opciones del filtro de sede; también con el botón ⟳ de la tabla.
+async function cargarSedes () {
   if (userStore.hasPermission('sedes.index')) {
     sedes.value = (await SedeService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } })).data
   }
+}
+
+onMounted(() => {
+  tableRef.value.requestServerInteraction()
+  cargarSedes()
 })
 
 // ── Registrar ──
