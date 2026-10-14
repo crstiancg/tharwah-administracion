@@ -3,7 +3,23 @@
     <AppPageHeader
       title="Por reponer"
       :subtitle="`${pagination.rowsNumber} presentaciones por debajo de su stock mínimo`"
-    />
+    >
+      <template #actions>
+        <!-- Lo marcado pasa a una orden de compra para el proveedor. -->
+        <AppButton
+          v-if="userStore.hasPermission('ordenes-compra.store')"
+          variant="primary"
+          :label="seleccion.length ? `Crear orden de compra (${seleccion.length})` : 'Crear orden de compra'"
+          icon="add_shopping_cart"
+          :disable="!seleccion.length"
+          @click="ordenDialog = true"
+        >
+          <q-tooltip v-if="!seleccion.length">
+            Marcá en la tabla lo que querés pedir
+          </q-tooltip>
+        </AppButton>
+      </template>
+    </AppPageHeader>
 
     <AppFilterBar
       v-model:search="search"
@@ -19,18 +35,26 @@
         label="Sede"
         :options="sedeOptions"
       />
+      <AppFilterPill
+        v-if="marcas.length"
+        v-model="marcaFilter"
+        label="Marca"
+        :options="marcaOptions"
+      />
     </AppFilterBar>
 
     <AppTable
       ref="tableRef"
       v-model:pagination="pagination"
+      v-model:selected="seleccion"
+      :selection="userStore.hasPermission('ordenes-compra.store') ? 'multiple' : 'none'"
       :rows="rows"
       :columns="columns"
       :loading="loading"
       :filter="filtroTabla"
       no-data-label="Nada por reponer: todo está sobre su stock mínimo."
       @request="onRequest"
-      @refresh="cargarSedes"
+      @refresh="cargarCatalogos"
     >
       <template #body-cell-producto="props">
         <q-td :props="props">
@@ -42,6 +66,9 @@
               · {{ props.row.color.nombre }}
             </template> ·
             <span class="text-mono">{{ props.row.sku }}</span>
+            <template v-if="props.row.marca">
+              · {{ props.row.marca.nombre }}
+            </template>
           </div>
         </q-td>
       </template>
@@ -61,23 +88,60 @@
 
     <p class="reponer-ayuda">
       El mínimo se define por presentación en el formulario del producto. Reponé con una compra o con un traslado desde otra sede
-      (la columna "En la empresa" muestra si hay stock en otras sedes).
+      (la columna "En la empresa" muestra si hay stock en otras sedes). Para pedirle al proveedor, filtrá por su marca, marcá lo
+      que falta y tocá "Crear orden de compra".
     </p>
+
+    <AppDialog
+      v-model="ordenDialog"
+      title="Nueva orden de compra"
+      size="lg"
+      persistent
+    >
+      <OrdenCompraForm
+        v-if="ordenDialog"
+        ref="ordenRef"
+        :iniciales="seleccion"
+        @save="ordenGuardada"
+      />
+
+      <template #actions>
+        <AppButton
+          variant="tertiary"
+          label="Cancelar"
+          @click="ordenDialog = false"
+        />
+        <AppButton
+          variant="primary"
+          label="Guardar orden"
+          :loading="ordenRef?.form.processing"
+          @click="ordenRef.submit()"
+        />
+      </template>
+    </AppDialog>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useQuasar } from 'quasar'
+import { useRouter } from 'vue-router'
+import AppButton from '@/components/AppButton.vue'
+import AppDialog from '@/components/AppDialog.vue'
 import AppFilterBar from '@/components/AppFilterBar.vue'
 import AppFilterPill from '@/components/AppFilterPill.vue'
 import AppPageHeader from '@/components/AppPageHeader.vue'
 import AppTable from '@/components/AppTable.vue'
+import OrdenCompraForm from '@/modules/OrdenesCompra/OrdenCompraForm.vue'
 import InventarioService from '@/services/InventarioService'
+import MarcaService from '@/services/MarcaService'
 import SedeService from '@/services/SedeService'
 import { useUserStore } from '@/stores/user-store'
 import { formatearCantidad } from '@/utils/cantidad'
 import { formatearPrecio } from '@/utils/moneda'
 
+const $q = useQuasar()
+const router = useRouter()
 const userStore = useUserStore()
 
 // Lo que hay que traer para llegar al mínimo.
@@ -107,14 +171,22 @@ const sedeFilter = ref(userStore.sedeId)
 const sedes = ref([])
 const sedeOptions = computed(() => sedes.value.map((s) => ({ label: s.nombre, value: s.id })))
 
-const hayFiltros = computed(() => Boolean(search.value || sedeFilter.value !== userStore.sedeId))
+const marcaFilter = ref(null)
+const marcas = ref([])
+const marcaOptions = computed(() => [
+  { label: 'Todas', value: null },
+  ...marcas.value.map((m) => ({ label: m.nombre, value: m.id }))
+])
+
+const hayFiltros = computed(() => Boolean(search.value || marcaFilter.value !== null || sedeFilter.value !== userStore.sedeId))
 
 function limpiarFiltros () {
   search.value = ''
+  marcaFilter.value = null
   sedeFilter.value = userStore.sedeId
 }
 
-const filtroTabla = computed(() => JSON.stringify({ search: busqueda.value, sede: sedeFilter.value }))
+const filtroTabla = computed(() => JSON.stringify({ search: busqueda.value, sede: sedeFilter.value, marca: marcaFilter.value }))
 
 // ── Tabla ──
 const tableRef = ref()
@@ -129,6 +201,7 @@ async function onRequest ({ pagination: requested }) {
   try {
     const params = { page, rowsPerPage, search: busqueda.value, bajo_minimo: 1 }
     if (sedeFilter.value) params.sede_id = sedeFilter.value
+    if (marcaFilter.value) params.marca_id = marcaFilter.value
 
     const { data, total = 0 } = await InventarioService.variantes({ params })
     rows.value = data
@@ -138,17 +211,34 @@ async function onRequest ({ pagination: requested }) {
   }
 }
 
-// Opciones del filtro de sede; también con el botón ⟳ de la tabla.
-async function cargarSedes () {
-  if (userStore.hasPermission('sedes.index')) {
-    sedes.value = await SedeService.activas()
-  }
+// Opciones de los filtros de sede y marca; también con el botón ⟳ de la tabla.
+async function cargarCatalogos () {
+  const [s, m] = await Promise.all([
+    userStore.hasPermission('sedes.index') ? SedeService.activas() : [],
+    MarcaService.getData({ params: { rowsPerPage: 0, order_by: 'nombre' } }).catch(() => ({ data: [] }))
+  ])
+  sedes.value = s
+  marcas.value = m.data.filter((marca) => marca.activo !== false)
 }
 
 onMounted(() => {
   tableRef.value.requestServerInteraction()
-  cargarSedes()
+  cargarCatalogos()
 })
+
+// ── Orden de compra con lo marcado ──
+// Lo marcado se queda aunque se cambie de página o de filtro: se puede
+// juntar todo lo de una marca y pedirlo en una sola orden.
+const seleccion = ref([])
+const ordenDialog = ref(false)
+const ordenRef = ref()
+
+function ordenGuardada (orden) {
+  ordenDialog.value = false
+  seleccion.value = []
+  $q.notify({ type: 'positive', message: `Orden ${orden?.codigo ?? ''} creada: imprimila y mandásela al proveedor.`, position: 'top-right', timeout: 3000 })
+  if (orden) router.push({ path: '/ordenes-compra', query: { ver: orden.id } })
+}
 </script>
 
 <style lang="scss" scoped>

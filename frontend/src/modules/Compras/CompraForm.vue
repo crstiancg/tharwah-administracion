@@ -342,6 +342,14 @@ import { TIPOS_DOCUMENTO } from './constantes'
 
 const PATH = 'compra'
 
+const props = defineProps({
+  // Al recibir una orden de compra: proveedor e ítems ya cargados.
+  orden: {
+    type: Object,
+    default: null
+  }
+})
+
 const emit = defineEmits(['save'])
 
 const userStore = useUserStore()
@@ -360,6 +368,7 @@ const form = useForm('post', 'api/compras', () => ({
     numero_documento: '',
     fecha: hoy,
     observacion: '',
+    orden_compra_id: null,
     items: []
   }
 }))
@@ -396,6 +405,20 @@ function agregar (variante) {
 
 function quitar (i) {
   form.compra.items.splice(i, 1)
+}
+
+// Recibir una orden: lo pedido, con el costo pactado (o el promedio). Se
+// ajusta a lo que llegó de verdad; el lote y el vencimiento, del envase.
+if (props.orden) {
+  proveedor.value = props.orden.proveedor
+  form.compra.orden_compra_id = props.orden.id
+  form.compra.observacion = `Recepción de la orden ${props.orden.codigo}`
+  for (const item of props.orden.items) {
+    agregar(item.variante)
+    const linea = form.compra.items[form.compra.items.length - 1]
+    linea.cantidad = String(item.cantidad)
+    if (item.costo_unitario !== null) linea.costo_unitario = Number(item.costo_unitario).toFixed(2)
+  }
 }
 
 function numero (valor) {

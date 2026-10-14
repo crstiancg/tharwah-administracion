@@ -55,7 +55,7 @@ return [
         'productos.index' => ['ofertas.store', 'ofertas.update'],
         // El form de productos elige la marca, y la unidad y el color de
         // cada presentación; marca y color también filtran el punto de venta.
-        'marcas.index' => ['productos.store', 'productos.update', 'productos.index', 'ventas.store'],
+        'marcas.index' => ['productos.store', 'productos.update', 'productos.index', 'ventas.store', 'inventario.index'],
         'unidades.index' => ['productos.store', 'productos.update'],
         'colores.index' => ['productos.store', 'productos.update', 'ventas.store'],
         'ventas.catalogo' => ['ventas.store'],
@@ -78,13 +78,15 @@ return [
         'clientes.show' => ['clientes.update'],
         'proveedores.show' => ['proveedores.update'],
         // El form de compras elige el proveedor.
-        'proveedores.index' => ['compras.store', 'compras.index'],
+        'proveedores.index' => ['compras.store', 'compras.index', 'ordenes-compra.store', 'ordenes-compra.update', 'ordenes-compra.index'],
         'proveedores.consultar-ruc' => ['proveedores.store', 'proveedores.update'],
         // Quien ve la lista abre el detalle (como pedidos).
         'compras.show' => ['compras.index', 'compras.anular'],
+        // Quien ve la lista abre el detalle (y lo imprime para el proveedor).
+        'ordenes-compra.show' => ['ordenes-compra.index', 'ordenes-compra.update', 'ordenes-compra.enviar', 'ordenes-compra.anular'],
         'cotizaciones.show' => ['cotizaciones.index', 'cotizaciones.update'],
         // El form de cotizaciones busca clientes y presentaciones.
-        'inventario.variantes' => ['inventario.entradas', 'inventario.salidas', 'inventario.ajustes', 'inventario.traslados', 'pedidos.store', 'pedidos.update', 'ventas.store', 'compras.store', 'cotizaciones.store', 'cotizaciones.update', 'inventario.index'],
+        'inventario.variantes' => ['inventario.entradas', 'inventario.salidas', 'inventario.ajustes', 'inventario.traslados', 'pedidos.store', 'pedidos.update', 'ventas.store', 'compras.store', 'cotizaciones.store', 'cotizaciones.update', 'ordenes-compra.store', 'ordenes-compra.update', 'inventario.index'],
         // Autocompletar con RENIEC/SUNAT es parte de cargar un cliente.
         'clientes.consultar-documento' => ['clientes.store', 'clientes.update'],
         // A diferencia de los catálogos, quien ve la lista de pedidos puede
@@ -113,6 +115,7 @@ return [
         'clientes' => 'Clientes',
         'proveedores' => 'Proveedores',
         'compras' => 'Compras',
+        'ordenes-compra' => 'Órdenes de compra',
         'cotizaciones' => 'Cotizaciones',
         'reportes' => 'Reportes',
         'pedidos' => 'Pedidos',
@@ -159,6 +162,7 @@ return [
         'imprimir' => 'Imprimir códigos de barras',
         'consultar-ruc' => 'Consultar RUC',
         'anular' => 'Anular',
+        'enviar' => 'Marcar enviada al proveedor',
         'convertir' => 'Convertir en pedido',
         'rechazar' => 'Rechazar',
         'ventas' => 'Ver ventas',

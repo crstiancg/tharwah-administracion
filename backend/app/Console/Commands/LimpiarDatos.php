@@ -32,6 +32,8 @@ class LimpiarDatos extends Command
         'pedidos',
         'cotizacion_items',
         'cotizaciones',
+        'orden_compra_items',
+        'ordenes_compra',
         'compra_items',
         'compras',
         'ofertables',

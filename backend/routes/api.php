@@ -14,6 +14,7 @@ use App\Http\Controllers\MarcaController;
 use App\Http\Controllers\OfertaController;
 use App\Http\Controllers\PagoController;
 use App\Http\Controllers\PanelController;
+use App\Http\Controllers\OrdenCompraController;
 use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\PermisoController;
 use App\Http\Controllers\ProductoController;
@@ -85,6 +86,11 @@ Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
         // Una compra no se edita ni se borra: se anula.
         Route::apiResource('compras', CompraController::class)->only(['index', 'store', 'show']);
 
+        // Sin destroy: se anula o se recibe con una compra.
+        Route::apiResource('ordenes-compra', OrdenCompraController::class)
+            ->parameters(['ordenes-compra' => 'orden'])
+            ->except(['destroy']);
+
         // Sin destroy: se rechaza o se convierte en pedido.
         Route::apiResource('cotizaciones', CotizacionController::class)
             ->parameters(['cotizaciones' => 'cotizacion'])
@@ -121,6 +127,8 @@ Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
     Route::get('cajas/{caja}', [CajaController::class, 'show'])->name('cajas.show');
 
     Route::post('compras/{compra}/anular', [CompraController::class, 'anular'])->name('compras.anular');
+    Route::post('ordenes-compra/{orden}/enviar', [OrdenCompraController::class, 'enviar'])->name('ordenes-compra.enviar');
+    Route::post('ordenes-compra/{orden}/anular', [OrdenCompraController::class, 'anular'])->name('ordenes-compra.anular');
     Route::post('cotizaciones/{cotizacion}/convertir', [CotizacionController::class, 'convertir'])->name('cotizaciones.convertir');
     Route::post('cotizaciones/{cotizacion}/rechazar', [CotizacionController::class, 'rechazar'])->name('cotizaciones.rechazar');
 

@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
  */
 class Compras
 {
-    public function __construct(private Inventario $inventario) {}
+    public function __construct(private Inventario $inventario, private OrdenesCompra $ordenes) {}
 
     /**
      * @param  array<string, mixed>  $datos  compra validada (con `items`)
@@ -69,6 +69,11 @@ class Compras
                 MovimientoInventario::MOTIVO_COMPRA,
                 ['compra_id' => $compra->id],
             ));
+
+            // Con orden de compra: queda recibida con esta compra.
+            if (filled($datos['orden_compra_id'] ?? null)) {
+                $this->ordenes->recibir((int) $datos['orden_compra_id'], $compra);
+            }
 
             return $compra;
         });

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Compra;
+use App\Models\OrdenCompra;
 use App\Models\Variante;
 use App\Support\Cantidades;
 use App\Support\Fechas;
@@ -62,6 +63,14 @@ class StoreCompraRequest extends FormRequest
             ],
             'compra.fecha' => ['required', 'date', 'before_or_equal:today'],
             'compra.observacion' => ['nullable', 'string', 'max:500'],
+            // La orden de compra que se recibe con esta compra (opcional): del
+            // mismo proveedor y todavía abierta.
+            'compra.orden_compra_id' => [
+                'nullable', 'integer',
+                Rule::exists('ordenes_compra', 'id')
+                    ->whereIn('estado', [OrdenCompra::PENDIENTE, OrdenCompra::ENVIADA])
+                    ->where('proveedor_id', (int) $this->input('compra.proveedor_id')),
+            ],
             'compra.items' => ['required', 'array', 'min:1', 'max:'.self::MAX_ITEMS],
         ];
 
