@@ -230,7 +230,7 @@ const MENU = [
     label: 'Compras',
     icon: 'shopping_bag',
     items: [
-      { to: '/ordenes-compra', icon: 'assignment', label: 'Órdenes de compra', permiso: 'ordenes-compra.index' },
+      { to: '/ordenes-compra', icon: 'assignment', label: 'Pedidos de compra', permiso: 'ordenes-compra.index' },
       { to: '/compras', icon: 'shopping_bag', label: 'Compras', permiso: 'compras.index' },
       { to: '/proveedores', icon: 'local_shipping', label: 'Proveedores', permiso: 'proveedores.index' }
     ]

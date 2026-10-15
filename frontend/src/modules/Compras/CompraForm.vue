@@ -412,7 +412,7 @@ function quitar (i) {
 if (props.orden) {
   proveedor.value = props.orden.proveedor
   form.compra.orden_compra_id = props.orden.id
-  form.compra.observacion = `Recepción de la orden ${props.orden.codigo}`
+  form.compra.observacion = `Recepción del pedido de compra ${props.orden.codigo}`
   for (const item of props.orden.items) {
     agregar(item.variante)
     const linea = form.compra.items[form.compra.items.length - 1]

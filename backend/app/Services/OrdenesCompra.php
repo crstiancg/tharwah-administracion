@@ -67,7 +67,7 @@ class OrdenesCompra
         return DB::transaction(function () use ($orden) {
             $orden = $this->bloquear($orden);
             if ($orden->estado !== OrdenCompra::PENDIENTE) {
-                $this->falla("Una orden {$orden->estado} no se marca como enviada.");
+                $this->falla("Un pedido de compra {$orden->estadoTexto()} no se marca como enviado.");
             }
 
             $orden->forceFill(['estado' => OrdenCompra::ENVIADA, 'enviada_at' => now()])->save();
@@ -81,7 +81,7 @@ class OrdenesCompra
         return DB::transaction(function () use ($orden, $motivo) {
             $orden = $this->bloquear($orden);
             if (! $orden->abierta()) {
-                $this->falla("Una orden {$orden->estado} no se anula.");
+                $this->falla("Un pedido de compra {$orden->estadoTexto()} no se anula.");
             }
 
             $orden->forceFill([
@@ -102,7 +102,7 @@ class OrdenesCompra
     {
         $orden = OrdenCompra::query()->whereKey($ordenId)->lockForUpdate()->firstOrFail();
         if (! $orden->abierta()) {
-            $this->falla("La orden {$orden->codigo} ya está {$orden->estado}.", 'compra.orden_compra_id');
+            $this->falla("El pedido de compra {$orden->codigo} ya está {$orden->estadoTexto()}.", 'compra.orden_compra_id');
         }
 
         $orden->forceFill(['estado' => OrdenCompra::RECIBIDA, 'compra_id' => $compra->id])->save();

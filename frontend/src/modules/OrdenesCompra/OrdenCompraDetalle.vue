@@ -31,7 +31,7 @@
       v-else-if="orden.estado === 'anulada'"
       class="oc-detalle__aviso"
     >
-      Anulada el {{ fechaCorta(orden.anulada_at) }}<template v-if="orden.motivo_anulacion">
+      Anulado el {{ fechaCorta(orden.anulada_at) }}<template v-if="orden.motivo_anulacion">
         : {{ orden.motivo_anulacion }}
       </template>
     </p>
@@ -39,7 +39,7 @@
       v-else-if="orden.estado === 'enviada'"
       class="oc-detalle__aviso"
     >
-      Enviada al proveedor el {{ fechaCorta(orden.enviada_at) }}. Cuando llegue la mercadería, registrá la recepción.
+      Enviado al proveedor el {{ fechaCorta(orden.enviada_at) }}. Cuando llegue la mercadería, registrá la recepción.
     </p>
 
     <!-- La misma vista que se imprime. -->

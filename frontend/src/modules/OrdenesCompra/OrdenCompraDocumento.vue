@@ -19,7 +19,7 @@
       </div>
       <div class="oc-doc__caja">
         <div class="oc-doc__titulo">
-          ORDEN DE COMPRA
+          PEDIDO DE COMPRA
         </div>
         <div class="oc-doc__codigo">
           {{ orden.codigo }}
@@ -120,7 +120,7 @@
 
     <footer class="oc-doc__pie">
       <span v-if="orden.usuario">Solicitado por: {{ orden.usuario.name }}</span>
-      <span>Favor de indicar el n° de orden en la guía y la factura.</span>
+      <span>Favor de indicar el n° de pedido en la guía y la factura.</span>
     </footer>
   </article>
 </template>

@@ -1,14 +1,14 @@
 <template>
   <div class="app-list-page">
     <AppPageHeader
-      title="Órdenes de compra"
-      :subtitle="`${pagination.rowsNumber} órdenes a proveedores`"
+      title="Pedidos de compra"
+      :subtitle="`${pagination.rowsNumber} pedidos a proveedores`"
     >
       <template #actions>
         <AppButton
           v-if="userStore.hasPermission('ordenes-compra.store')"
           variant="primary"
-          label="Nueva orden"
+          label="Nuevo pedido de compra"
           icon="add_shopping_cart"
           @click="crear"
         />
@@ -37,7 +37,7 @@
       :columns="columns"
       :loading="loading"
       :filter="filtroTabla"
-      no-data-label="No hay órdenes de compra. Creá una desde aquí o desde Por reponer."
+      no-data-label="No hay pedidos de compra. Creá uno desde aquí o desde Por reponer."
       @request="onRequest"
     >
       <template #body-cell-codigo="props">
@@ -112,7 +112,7 @@
     <!-- ── Crear / editar ── -->
     <AppDialog
       v-model="formDialog"
-      :title="editId ? 'Editar orden de compra' : 'Nueva orden de compra'"
+      :title="editId ? 'Editar pedido de compra' : 'Nuevo pedido de compra'"
       size="lg"
       persistent
     >
@@ -141,7 +141,7 @@
     <!-- ── Detalle con acciones ── -->
     <AppDialog
       v-model="detalleDialog"
-      title="Orden de compra"
+      title="Pedido de compra"
       size="lg"
     >
       <OrdenCompraDetalle
@@ -176,7 +176,7 @@
         <AppButton
           v-if="detalle?.estado === 'pendiente' && userStore.hasPermission('ordenes-compra.enviar')"
           variant="secondary"
-          label="Marcar enviada"
+          label="Marcar enviado"
           icon="send"
           @click="confirmarEnvio"
         />
@@ -223,10 +223,10 @@
     <!-- ── Anular ── -->
     <AppDialog
       v-model="anularDialog"
-      title="Anular orden de compra"
+      title="Anular pedido de compra"
     >
       <p class="oc-confirm">
-        <strong>{{ detalle?.codigo }}</strong> queda anulada y ya no se puede recibir. No mueve stock.
+        <strong>{{ detalle?.codigo }}</strong> queda anulado y ya no se puede recibir. No mueve stock.
       </p>
       <AppTextField
         v-model="motivo"
@@ -284,7 +284,7 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const columns = [
-  { name: 'codigo', label: 'Orden', field: 'codigo', align: 'left', sortable: true },
+  { name: 'codigo', label: 'Pedido', field: 'codigo', align: 'left', sortable: true },
   { name: 'proveedor', label: 'Proveedor', field: (row) => row.proveedor?.razon_social, align: 'left' },
   { name: 'fecha_entrega', label: 'Entrega', field: 'fecha_entrega', align: 'left', sortable: true, format: (v) => fechaCorta(v) || '—', classes: 'text-mono' },
   { name: 'items_count', label: 'Ítems', field: 'items_count', align: 'right', classes: 'text-mono' },
@@ -370,7 +370,7 @@ function editar (orden) {
 function guardada (orden) {
   formDialog.value = false
   refrescar()
-  $q.notify({ type: 'positive', message: `Orden ${orden?.codigo ?? ''} guardada.`, position: 'top-right', timeout: 1500 })
+  $q.notify({ type: 'positive', message: `Pedido de compra ${orden?.codigo ?? ''} guardado.`, position: 'top-right', timeout: 1500 })
   if (orden) ver(orden)
 }
 
@@ -404,10 +404,10 @@ function avisarError (error) {
   }
 }
 
-// Enviada = ya no se edita: se pregunta antes.
+// Enviado = ya no se edita: se pregunta antes.
 function confirmarEnvio () {
   $q.notify({
-    message: `¿Marcar ${detalle.value.codigo} como enviada al proveedor?`,
+    message: `¿Marcar ${detalle.value.codigo} como enviado al proveedor?`,
     caption: 'Después ya no se puede editar (sí anular o recibir).',
     icon: 'help_outline',
     color: 'warning',
@@ -417,7 +417,7 @@ function confirmarEnvio () {
     multiLine: true,
     actions: [
       { label: 'Cancelar', color: 'dark' },
-      { label: 'Sí, enviada', color: 'dark', handler: enviar }
+      { label: 'Sí, enviado', color: 'dark', handler: enviar }
     ]
   })
 }
@@ -427,7 +427,7 @@ async function enviar () {
   try {
     detalleRef.value.actualizar(await OrdenCompraService.enviar(detalle.value.id))
     refrescar()
-    $q.notify({ type: 'positive', message: 'Orden marcada como enviada.', position: 'top-right', timeout: 2000 })
+    $q.notify({ type: 'positive', message: 'Pedido marcado como enviado.', position: 'top-right', timeout: 2000 })
   } catch (error) {
     avisarError(error)
   } finally {
@@ -453,7 +453,7 @@ async function anular () {
     detalleRef.value.actualizar(await OrdenCompraService.anular(detalle.value.id, motivo.value.trim()))
     anularDialog.value = false
     refrescar()
-    $q.notify({ type: 'positive', message: 'Orden anulada.', position: 'top-right', timeout: 2000 })
+    $q.notify({ type: 'positive', message: 'Pedido de compra anulado.', position: 'top-right', timeout: 2000 })
   } catch (error) {
     errorAnular.value = error.response?.data?.errors?.motivo?.[0] ?? ''
     if (!errorAnular.value) avisarError(error)
@@ -476,7 +476,7 @@ async function recibida (compra) {
   refrescar()
   $q.notify({
     type: 'positive',
-    message: `Compra ${compra?.codigo ?? ''} registrada: la mercadería ya está en stock y la orden quedó recibida.`,
+    message: `Compra ${compra?.codigo ?? ''} registrada: la mercadería ya está en stock y el pedido quedó recibido.`,
     position: 'top-right',
     timeout: 3500
   })

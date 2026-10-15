@@ -51,6 +51,20 @@ class OrdenCompra extends Model
         ];
     }
 
+    /**
+     * El estado para los mensajes: en pantalla es "pedido de compra"
+     * (masculino), aunque en la base quede como `enviada`, `recibida`…
+     */
+    public function estadoTexto(): string
+    {
+        return match ($this->estado) {
+            self::ENVIADA => 'enviado',
+            self::RECIBIDA => 'recibido',
+            self::ANULADA => 'anulado',
+            default => $this->estado,
+        };
+    }
+
     /** Se edita mientras no se mandó al proveedor. */
     public function editable(): bool
     {

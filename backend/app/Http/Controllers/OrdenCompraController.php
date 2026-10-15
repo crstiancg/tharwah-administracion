@@ -62,7 +62,7 @@ class OrdenCompraController extends Controller
     public function update(StoreOrdenCompraRequest $request, OrdenCompra $orden): JsonResponse
     {
         if (! $orden->editable()) {
-            return response()->json(['message' => "Una orden {$orden->estado} ya no se edita."], 409);
+            return response()->json(['message' => "Un pedido de compra {$orden->estadoTexto()} ya no se edita."], 409);
         }
 
         $this->ordenes->guardar($orden, $request->validated('orden'), $request->user());

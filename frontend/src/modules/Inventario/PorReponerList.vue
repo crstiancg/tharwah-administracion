@@ -5,11 +5,11 @@
       :subtitle="`${pagination.rowsNumber} presentaciones por debajo de su stock mínimo`"
     >
       <template #actions>
-        <!-- Lo marcado pasa a una orden de compra para el proveedor. -->
+        <!-- Lo marcado pasa a un pedido de compra para el proveedor. -->
         <AppButton
           v-if="userStore.hasPermission('ordenes-compra.store')"
           variant="primary"
-          :label="seleccion.length ? `Crear orden de compra (${seleccion.length})` : 'Crear orden de compra'"
+          :label="seleccion.length ? `Crear pedido de compra (${seleccion.length})` : 'Crear pedido de compra'"
           icon="add_shopping_cart"
           :disable="!seleccion.length"
           @click="ordenDialog = true"
@@ -89,12 +89,12 @@
     <p class="reponer-ayuda">
       El mínimo se define por presentación en el formulario del producto. Reponé con una compra o con un traslado desde otra sede
       (la columna "En la empresa" muestra si hay stock en otras sedes). Para pedirle al proveedor, filtrá por su marca, marcá lo
-      que falta y tocá "Crear orden de compra".
+      que falta y tocá "Crear pedido de compra".
     </p>
 
     <AppDialog
       v-model="ordenDialog"
-      title="Nueva orden de compra"
+      title="Nuevo pedido de compra"
       size="lg"
       persistent
     >
@@ -113,7 +113,7 @@
         />
         <AppButton
           variant="primary"
-          label="Guardar orden"
+          label="Guardar pedido"
           :loading="ordenRef?.form.processing"
           @click="ordenRef.submit()"
         />
@@ -236,7 +236,7 @@ const ordenRef = ref()
 function ordenGuardada (orden) {
   ordenDialog.value = false
   seleccion.value = []
-  $q.notify({ type: 'positive', message: `Orden ${orden?.codigo ?? ''} creada: imprimila y mandásela al proveedor.`, position: 'top-right', timeout: 3000 })
+  $q.notify({ type: 'positive', message: `Pedido de compra ${orden?.codigo ?? ''} creado: imprimilo y mandáselo al proveedor.`, position: 'top-right', timeout: 3000 })
   if (orden) router.push({ path: '/ordenes-compra', query: { ver: orden.id } })
 }
 </script>

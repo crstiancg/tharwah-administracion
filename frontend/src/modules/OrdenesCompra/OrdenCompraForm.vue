@@ -6,7 +6,7 @@
   >
     <p class="oc-form__ayuda">
       Lo que le pedís al proveedor. No mueve stock: la mercadería entra cuando llega y registrás la recepción
-      (desde la orden, con “Registrar recepción”).
+      (desde el pedido, con “Registrar recepción”).
     </p>
 
     <!-- ── Proveedor y entrega ── -->
@@ -202,7 +202,7 @@
         v-else
         class="oc-form__vacio"
       >
-        Buscá los productos arriba, o creá la orden desde <strong>Por reponer</strong> marcando lo que falta.
+        Buscá los productos arriba, o creá el pedido desde <strong>Por reponer</strong> marcando lo que falta.
       </p>
     </section>
 
