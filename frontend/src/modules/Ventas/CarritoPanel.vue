@@ -2,13 +2,10 @@
   <aside class="carrito">
     <!-- ── Cabecera + ventas en espera ── -->
     <header class="carrito__cabecera">
-      <div>
-        <div class="carrito__titulo">
-          Venta actual
-        </div>
-        <div class="carrito__sub">
-          {{ pos.unidades }} {{ pos.unidades === 1 ? 'unidad' : 'unidades' }}
-        </div>
+      <!-- En una fila: el alto queda para la lista de productos. -->
+      <div class="carrito__encabezado">
+        <span class="carrito__titulo">Venta actual</span>
+        <span class="carrito__sub">· {{ pos.unidades }} {{ pos.unidades === 1 ? 'unidad' : 'unidades' }}</span>
       </div>
       <div class="carrito__espera">
         <q-btn
@@ -117,10 +114,10 @@
         </div>
 
         <div class="linea__cuerpo">
-          <div class="linea__nombre">
-            {{ item.nombre }}
-          </div>
-          <div class="linea__detalle">
+          <!-- Nombre y presentación en una fila: que entren más líneas. -->
+          <div class="linea__cabeza">
+            <span class="linea__nombre">{{ item.nombre }}</span>
+            <span class="linea__detalle">
             <span class="linea__talla">{{ item.presentacion }}</span>
             <span
               v-if="item.color"
@@ -128,7 +125,8 @@
               :style="{ background: item.color.hexadecimal }"
               :title="item.color.nombre"
             />
-            {{ item.color?.nombre }} · <span class="text-mono">{{ item.sku }}</span>
+              {{ item.color?.nombre }} · <span class="text-mono">{{ item.sku }}</span>
+            </span>
           </div>
 
           <div class="linea__controles">
@@ -253,12 +251,8 @@
         {{ errores['venta.descuento'][0] }}
       </p>
       <div class="carrito__fila carrito__fila--igv">
-        <span>Op. gravada</span>
-        <span class="text-mono">{{ formatearPrecio(igvCarrito.opGravada) }}</span>
-      </div>
-      <div class="carrito__fila carrito__fila--igv">
-        <span>{{ ETIQUETA_IGV }}</span>
-        <span class="text-mono">{{ formatearPrecio(igvCarrito.igv) }}</span>
+        <span>Op. gravada <span class="text-mono">{{ formatearPrecio(igvCarrito.opGravada) }}</span></span>
+        <span>{{ ETIQUETA_IGV }} <span class="text-mono">{{ formatearPrecio(igvCarrito.igv) }}</span></span>
       </div>
       <div class="carrito__total">
         <span>Total</span>
@@ -460,6 +454,30 @@
       </button>
     </footer>
 
+    <!-- ── Antes de cobrar: toda la venta, grande ── -->
+    <AppDialog
+      v-model="resumenDialog"
+      title="Resumen de la venta"
+      size="lg"
+    >
+      <ResumenVenta v-if="resumenDialog" />
+      <template #actions>
+        <AppButton
+          variant="tertiary"
+          label="Volver"
+          :disable="procesando"
+          @click="resumenDialog = false"
+        />
+        <AppButton
+          variant="primary"
+          :label="`Confirmar cobro · ${formatearPrecio(pos.total)}`"
+          icon="point_of_sale"
+          :loading="procesando"
+          @click="confirmarCobro"
+        />
+      </template>
+    </AppDialog>
+
     <AppDialog
       v-model="abrirCajaDialog"
       title="Abrir caja"
@@ -503,6 +521,7 @@ import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
+import ResumenVenta from './ResumenVenta.vue'
 import AbrirCajaForm from '@/modules/Caja/AbrirCajaForm.vue'
 import CerrarCajaForm from '@/modules/Caja/CerrarCajaForm.vue'
 import { avisoCierre, CON_OPERACION, HORA_AVISO_CIERRE, METODOS } from '@/modules/Caja/constantes'
@@ -694,9 +713,27 @@ const motivoComprobante = computed(() => motivoNoPermitido(pos.comprobante, pos.
 const puedeCobrar = computed(() =>
   !motivoComprobante.value && Boolean(caja.value) && !caja.value.vencida && pos.items.length > 0 && pos.total > 0 && Math.abs(pos.restante) < 0.005 && !procesando.value)
 
-async function cobrar () {
+// Cobrar (botón o F9) primero muestra el resumen; confirmar ahí (Enter o
+// F9 otra vez) registra la venta y descuenta el stock.
+const resumenDialog = ref(false)
+
+function cobrar () {
+  if (resumenDialog.value) {
+    confirmarCobro()
+    return
+  }
   if (!puedeCobrar.value) {
     if (pos.items.length) beepError()
+    return
+  }
+  resumenDialog.value = true
+}
+
+async function confirmarCobro () {
+  if (procesando.value) return
+  if (!puedeCobrar.value) {
+    resumenDialog.value = false
+    beepError()
     return
   }
   procesando.value = true
@@ -715,10 +752,13 @@ async function cobrar () {
         referencia: p.metodo !== 'efectivo' ? p.referencia : null
       }))
     })
+    resumenDialog.value = false
     pos.limpiar()
     emit('vendido', pedido)
   } catch (error) {
     beepError()
+    // Vuelve al carrito: el error se marca en la línea o el campo.
+    resumenDialog.value = false
     const { status, data } = error.response ?? {}
     if (status === 422) {
       errores.value = data.errors ?? {}
@@ -736,7 +776,7 @@ function enfocarCliente () {
   clienteRef.value?.$el?.querySelector('input')?.focus()
 }
 
-defineExpose({ cobrar, enfocarCliente })
+defineExpose({ cobrar, enfocarCliente, resumenAbierto: resumenDialog })
 </script>
 
 <style lang="scss" scoped>
@@ -751,11 +791,17 @@ defineExpose({ cobrar, enfocarCliente })
 
 .carrito__cabecera {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 14px 16px 10px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--app-border-subtle);
+}
+
+.carrito__encabezado {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .carrito__titulo {
@@ -811,8 +857,9 @@ defineExpose({ cobrar, enfocarCliente })
 .linea {
   position: relative;
   display: flex;
+  align-items: center;
   gap: 10px;
-  padding: 10px 8px;
+  padding: 6px 8px;
   border: 1px solid transparent;
   border-radius: 10px;
   cursor: pointer;
@@ -837,8 +884,8 @@ defineExpose({ cobrar, enfocarCliente })
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
   background: var(--app-border-subtle) center / cover;
   color: var(--app-ink-2);
@@ -849,9 +896,18 @@ defineExpose({ cobrar, enfocarCliente })
   min-width: 0;
 }
 
+.linea__cabeza {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-right: 18px;
+}
+
 .linea__nombre {
   overflow: hidden;
-  padding-right: 18px;
+  flex: 0 1 auto;
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
@@ -861,9 +917,13 @@ defineExpose({ cobrar, enfocarCliente })
 
 .linea__detalle {
   display: flex;
+  overflow: hidden;
+  flex: 1 1 0;
   align-items: center;
   gap: 4px;
+  min-width: 0;
   font-size: 11.5px;
+  white-space: nowrap;
   color: var(--app-ink-2);
 }
 
@@ -891,7 +951,7 @@ defineExpose({ cobrar, enfocarCliente })
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-top: 6px;
+  margin-top: 3px;
 }
 
 .linea__cantidadInput {
