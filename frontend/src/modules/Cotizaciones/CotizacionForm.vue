@@ -11,7 +11,7 @@
           <label
             :id="`${uid}-cliente`"
             class="cotizacion-form__label"
-          >Cliente</label>
+          >Cliente <span class="cotizacion-form__opcional">(opcional)</span></label>
           <button
             v-if="userStore.hasPermission('clientes.store')"
             type="button"
@@ -37,12 +37,13 @@
         <label
           :for="`${uid}-validez`"
           class="cotizacion-form__label"
-        >Válida hasta</label>
+        >Válida hasta <span class="cotizacion-form__requerido">*</span></label>
         <q-input
           :id="`${uid}-validez`"
           v-model="form.cotizacion.valida_hasta"
           type="date"
           :min="hoy"
+          required
           dense
           outlined
           hide-bottom-space
@@ -313,6 +314,7 @@
 
 <script setup>
 import { computed, onMounted, ref, useId, watch } from 'vue'
+import { useQuasar } from 'quasar'
 import { useForm } from 'laravel-precognition-vue'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
@@ -340,6 +342,7 @@ const props = defineProps({
 
 const emit = defineEmits(['save'])
 
+const $q = useQuasar()
 const userStore = useUserStore()
 const uid = `cotizacion-${useId()}`
 const hoy = hoyLocal()
@@ -404,8 +407,9 @@ onMounted(async () => {
   form.setData({
     [PATH]: {
       cliente_id: cotizacion.cliente_id,
-      // Una vencida se edita para renovarla: arranca con la validez de nuevo.
-      valida_hasta: cotizacion.valida_hasta < hoy ? formCotizacion().cotizacion.valida_hasta : cotizacion.valida_hasta,
+      // Una vencida se edita para renovarla: la validez queda vacía para
+      // poner la nueva.
+      valida_hasta: cotizacion.valida_hasta < hoy ? '' : cotizacion.valida_hasta,
       condiciones: cotizacion.condiciones ?? '',
       descuento: Number(cotizacion.descuento) ? cotizacion.descuento : '',
       observacion: cotizacion.observacion ?? '',
@@ -419,7 +423,36 @@ onMounted(async () => {
   })
 })
 
-async function submit () {
+// Sin cliente se puede ("cotización sin nombre"), pero se avisa antes: a
+// veces es un olvido. La validez es obligatoria.
+function submit () {
+  if (!form.cotizacion.valida_hasta) {
+    form.setErrors({ ...form.errors, [`${PATH}.valida_hasta`]: 'Poné hasta cuándo vale la cotización.' })
+    return
+  }
+
+  if (form.cotizacion.cliente_id) {
+    guardar()
+    return
+  }
+
+  $q.notify({
+    message: 'Vas a guardar la cotización sin cliente',
+    caption: 'Sale impresa sin nombre. Si es para alguien en particular, elegilo o crealo con “+ Nuevo cliente”.',
+    icon: 'person_off',
+    color: 'warning',
+    textColor: 'dark',
+    position: 'center',
+    timeout: 0,
+    multiLine: true,
+    actions: [
+      { label: 'Elegir cliente', color: 'dark' },
+      { label: 'Guardar sin cliente', color: 'dark', handler: guardar }
+    ]
+  })
+}
+
+async function guardar () {
   try {
     const respuesta = await form.submit()
     form.reset()
@@ -492,6 +525,15 @@ defineExpose({ form, submit })
   font-weight: 600;
   letter-spacing: -0.1px;
   color: var(--app-ink);
+}
+
+.cotizacion-form__opcional {
+  font-weight: 400;
+  color: var(--app-ink-2);
+}
+
+.cotizacion-form__requerido {
+  color: var(--q-negative);
 }
 
 .cotizacion-form__link {

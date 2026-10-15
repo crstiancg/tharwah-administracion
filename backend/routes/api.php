@@ -61,6 +61,8 @@ Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
         Route::apiResource('sedes', SedeController::class);
         Route::apiResource('marcas', MarcaController::class);
         Route::apiResource('unidades', UnidadController::class)->parameters(['unidades' => 'unidad']);
+        // Va antes del resource: si no, {producto} captura "exportar".
+        Route::get('productos/exportar', [ProductoController::class, 'exportar'])->name('productos.exportar');
         Route::apiResource('productos', ProductoController::class);
         Route::apiResource('ofertas', OfertaController::class);
 
@@ -129,6 +131,7 @@ Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
     Route::post('compras/{compra}/anular', [CompraController::class, 'anular'])->name('compras.anular');
     Route::post('ordenes-compra/{orden}/enviar', [OrdenCompraController::class, 'enviar'])->name('ordenes-compra.enviar');
     Route::post('ordenes-compra/{orden}/anular', [OrdenCompraController::class, 'anular'])->name('ordenes-compra.anular');
+    Route::get('cotizaciones/{cotizacion}/excel', [CotizacionController::class, 'excel'])->name('cotizaciones.excel');
     Route::post('cotizaciones/{cotizacion}/convertir', [CotizacionController::class, 'convertir'])->name('cotizaciones.convertir');
     Route::post('cotizaciones/{cotizacion}/rechazar', [CotizacionController::class, 'rechazar'])->name('cotizaciones.rechazar');
 

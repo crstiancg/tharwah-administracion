@@ -85,6 +85,9 @@ return [
         // Quien ve la lista abre el detalle (y lo imprime para el proveedor).
         'ordenes-compra.show' => ['ordenes-compra.index', 'ordenes-compra.update', 'ordenes-compra.enviar', 'ordenes-compra.anular'],
         'cotizaciones.show' => ['cotizaciones.index', 'cotizaciones.update'],
+        // Quien ve una cotización (o la lista de productos) la baja en Excel.
+        'cotizaciones.excel' => ['cotizaciones.index', 'cotizaciones.show'],
+        'productos.exportar' => ['productos.index'],
         // El form de cotizaciones busca clientes y presentaciones.
         'inventario.variantes' => ['inventario.entradas', 'inventario.salidas', 'inventario.ajustes', 'inventario.traslados', 'pedidos.store', 'pedidos.update', 'ventas.store', 'compras.store', 'cotizaciones.store', 'cotizaciones.update', 'ordenes-compra.store', 'ordenes-compra.update', 'inventario.index'],
         // Autocompletar con RENIEC/SUNAT es parte de cargar un cliente.
@@ -163,6 +166,8 @@ return [
         'consultar-ruc' => 'Consultar RUC',
         'anular' => 'Anular',
         'enviar' => 'Marcar enviada al proveedor',
+        'excel' => 'Descargar en Excel',
+        'exportar' => 'Exportar a Excel',
         'convertir' => 'Convertir en pedido',
         'rechazar' => 'Rechazar',
         'ventas' => 'Ver ventas',

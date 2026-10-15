@@ -14,8 +14,9 @@ class CotizacionService {
   }
 
   // Devuelve la cotización ya convertida, con `pedido` { id, codigo }.
-  static async convertir (id) {
-    return (await api.post(`api/cotizaciones/${id}/convertir`)).data
+  // `items` ([{ variante_id, cantidad }]): sólo lo que pide el cliente.
+  static async convertir (id, items) {
+    return (await api.post(`api/cotizaciones/${id}/convertir`, items ? { items } : {})).data
   }
 
   static async rechazar (id) {

@@ -143,24 +143,22 @@
                   size="12px"
                 />
               </button>
-              <!-- Kg, metros: se escribe la cantidad (2.5). Lo demás, con + / −. -->
+              <!-- Se escribe la cantidad (20 bolsas, 2.5 kg) o se ajusta con
+                   + / −. Al enfocarla queda seleccionada: se tipea encima. -->
               <input
-                v-if="item.fraccionable"
                 :value="item.cantidad"
                 type="number"
                 min="0"
-                step="0.001"
-                inputmode="decimal"
+                :step="item.fraccionable ? '0.001' : '1'"
+                :inputmode="item.fraccionable ? 'decimal' : 'numeric'"
                 class="linea__cantidadInput text-mono"
                 :aria-label="`Cantidad de ${item.sku}`"
                 @click.stop
+                @focus="$event.target.select()"
                 @keydown.stop
+                @keydown.enter="$event.target.blur()"
                 @change="fijar(item, $event)"
               >
-              <span
-                v-else
-                class="text-mono"
-              >{{ item.cantidad }}</span>
               <button
                 type="button"
                 :aria-label="`Uno más de ${item.sku}`"
@@ -298,11 +296,15 @@
         <div class="pago__campos">
           <label class="pago__campo">
             <span>{{ pos.pagos.length > 1 ? 'Monto' : 'Cobra' }}</span>
+            <!-- Con un solo pago es siempre el total (no se edita); en pago
+                 mixto se reparte el total entre los métodos. -->
             <input
               v-model="pago.monto"
               type="number"
               min="0.01"
               step="0.01"
+              :readonly="pos.pagos.length === 1"
+              :tabindex="pos.pagos.length === 1 ? -1 : undefined"
               class="text-mono"
               @input="pago.montoManual = true"
             >
@@ -626,6 +628,9 @@ function fijar (item, evento) {
   const resultado = pos.fijarCantidad(item.variante_id, evento.target.value)
   if (resultado !== 'ok') {
     beepError()
+    if (resultado === 'sin-stock') {
+      $q.notify({ type: 'warning', message: `Sólo hay ${item.stock} de ${item.sku} en tu sede.`, position: 'top-right', timeout: 2500 })
+    }
     // Vuelve a mostrar la cantidad que quedó.
     evento.target.value = item.cantidad
   }
@@ -1096,6 +1101,15 @@ defineExpose({ cobrar, enfocarCliente })
       border-color: $primary;
       outline: none;
       box-shadow: 0 0 0 3px rgba($primary, 0.12);
+    }
+
+    // Un solo pago: es el total, se muestra pero no se edita.
+    &[readonly] {
+      border-color: transparent;
+      background: var(--app-page);
+      font-weight: 700;
+      cursor: default;
+      box-shadow: none;
     }
   }
 }

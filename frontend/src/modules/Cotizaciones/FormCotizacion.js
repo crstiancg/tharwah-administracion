@@ -1,7 +1,3 @@
-import { hoyLocal } from './constantes'
-
-const VALIDEZ_DIAS = 15
-
 /**
  * Forma inicial del form de cotizaciones. La clave `cotizacion` es la misma
  * que valida StoreCotizacionRequest. Los totales NO van: los calcula el
@@ -14,7 +10,8 @@ export default function formCotizacion () {
   return {
     cotizacion: {
       cliente_id: null,
-      valida_hasta: hoyLocal(VALIDEZ_DIAS),
+      // Vacía a propósito: la pone quien cotiza (es obligatoria).
+      valida_hasta: '',
       condiciones: '',
       descuento: '',
       observacion: '',

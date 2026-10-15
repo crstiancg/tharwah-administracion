@@ -57,7 +57,15 @@
 
       <template #body-cell-cliente="props">
         <q-td :props="props">
-          <div>{{ props.row.cliente?.nombre }}</div>
+          <div v-if="props.row.cliente">
+            {{ props.row.cliente.nombre }}
+          </div>
+          <div
+            v-else
+            class="cot-meta"
+          >
+            Sin cliente
+          </div>
           <div
             v-if="props.row.cliente?.numero_documento"
             class="cot-meta"
@@ -163,6 +171,14 @@
           @click="impresionRef.imprimir(detalle)"
         />
         <AppButton
+          v-if="detalle"
+          variant="tertiary"
+          label="Excel"
+          icon="mdi-microsoft-excel"
+          :loading="accionando === 'excel'"
+          @click="bajarExcel"
+        />
+        <AppButton
           v-if="pendiente && userStore.hasPermission('cotizaciones.rechazar')"
           variant="tertiary"
           label="Rechazada"
@@ -182,8 +198,111 @@
           variant="primary"
           label="Convertir en pedido"
           icon="shopping_cart_checkout"
+          @click="abrirConvertir"
+        />
+      </template>
+    </AppDialog>
+
+    <!-- ── Convertir: el cliente puede no llevar todo lo cotizado ── -->
+    <AppDialog
+      v-model="convertirDialog"
+      :title="`Convertir ${detalle?.codigo ?? ''} en pedido`"
+      size="lg"
+      persistent
+    >
+      <p class="conv-ayuda">
+        Desmarcá lo que no lleva y bajá la cantidad si pide menos. Los precios son los cotizados.
+      </p>
+
+      <div class="conv-tablaWrap">
+        <table class="conv-tabla">
+          <thead>
+            <tr>
+              <th />
+              <th>Producto</th>
+              <th class="text-right">
+                Cotizado
+              </th>
+              <th>Pide</th>
+              <th class="text-right">
+                Precio
+              </th>
+              <th class="text-right">
+                Subtotal
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(linea, i) in lineas"
+              :key="linea.variante_id"
+              :class="{ 'conv-fila--fuera': !linea.lleva }"
+            >
+              <td>
+                <q-checkbox
+                  v-model="linea.lleva"
+                  dense
+                  :aria-label="`Lleva ${linea.variante.sku}`"
+                />
+              </td>
+              <td>
+                <div class="conv-producto">
+                  {{ linea.variante.producto?.nombre }}
+                </div>
+                <div class="cot-meta">
+                  {{ linea.variante.presentacion }} · <span class="text-mono">{{ linea.variante.sku }}</span>
+                </div>
+              </td>
+              <td class="text-right text-mono">
+                {{ formatearCantidad(linea.cotizada) }}
+              </td>
+              <td class="conv-cantidad">
+                <q-input
+                  v-model="linea.cantidad"
+                  type="number"
+                  min="0"
+                  :max="linea.cotizada"
+                  :step="linea.variante.unidad?.fraccionable ? '0.001' : '1'"
+                  :suffix="linea.variante.unidad?.abreviatura"
+                  :disable="!linea.lleva"
+                  :aria-label="`Cantidad de ${linea.variante.sku}`"
+                  dense
+                  outlined
+                  hide-bottom-space
+                  no-error-icon
+                  :error="Boolean(errorLinea(i))"
+                  :error-message="errorLinea(i)"
+                />
+              </td>
+              <td class="text-right text-mono">
+                {{ formatearPrecio(linea.precio_unitario) }}
+              </td>
+              <td class="text-right text-mono">
+                {{ linea.lleva ? formatearPrecio(subtotalLinea(linea)) : '—' }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="conv-total">
+        <span v-if="Number(detalle?.descuento)">Descuento proporcional: −{{ formatearPrecio(descuentoConvertir) }} ·</span>
+        Total del pedido: <strong class="text-mono">{{ formatearPrecio(totalConvertir) }}</strong>
+      </div>
+
+      <template #actions>
+        <AppButton
+          variant="tertiary"
+          label="Cancelar"
+          @click="convertirDialog = false"
+        />
+        <AppButton
+          variant="primary"
+          label="Crear pedido"
+          icon="shopping_cart_checkout"
+          :disable="!lineas.some((l) => l.lleva)"
           :loading="accionando === 'convertir'"
-          @click="ejecutar('convertir')"
+          @click="convertir"
         />
       </template>
     </AppDialog>
@@ -205,6 +324,8 @@ import AppPageHeader from '@/components/AppPageHeader.vue'
 import AppTable from '@/components/AppTable.vue'
 import CotizacionService from '@/services/CotizacionService'
 import { useUserStore } from '@/stores/user-store'
+import { formatearCantidad } from '@/utils/cantidad'
+import { descargarArchivo } from '@/utils/descargar'
 import { formatearPrecio } from '@/utils/moneda'
 import CotizacionDetalle from './CotizacionDetalle.vue'
 import CotizacionForm from './CotizacionForm.vue'
@@ -331,6 +452,85 @@ watch(() => route.query.ver, (id) => {
 
 const accionando = ref(null)
 
+async function bajarExcel () {
+  accionando.value = 'excel'
+  try {
+    await descargarArchivo(`api/cotizaciones/${detalle.value.id}/excel`, `${detalle.value.codigo}.xlsx`)
+  } catch {
+    $q.notify({ type: 'negative', message: 'No se pudo generar el Excel.', position: 'top-right' })
+  } finally {
+    accionando.value = null
+  }
+}
+
+// ── Convertir: elegir qué lleva y cuánto ──
+const convertirDialog = ref(false)
+const lineas = ref([])
+const erroresConvertir = ref({})
+
+function abrirConvertir () {
+  erroresConvertir.value = {}
+  lineas.value = detalle.value.items.map((item) => ({
+    variante_id: item.variante_id,
+    variante: item.variante,
+    cotizada: Number(item.cantidad),
+    cantidad: String(Number(item.cantidad)),
+    precio_unitario: item.precio_unitario,
+    lleva: true
+  }))
+  convertirDialog.value = true
+}
+
+function subtotalLinea (linea) {
+  const n = Number(linea.cantidad)
+  return Number.isFinite(n) ? Math.round(n * Number(linea.precio_unitario) * 100) / 100 : 0
+}
+
+// Vista previa: el descuento de la cotización se reparte en proporción a lo
+// que se lleva (lo mismo que hace el backend).
+const subtotalConvertir = computed(() => lineas.value.filter((l) => l.lleva).reduce((s, l) => s + subtotalLinea(l), 0))
+const descuentoConvertir = computed(() => {
+  const original = Number(detalle.value?.subtotal ?? 0)
+  if (!original) return 0
+  return Math.min(subtotalConvertir.value, Math.round(Number(detalle.value.descuento) * subtotalConvertir.value / original * 100) / 100)
+})
+const totalConvertir = computed(() => subtotalConvertir.value - descuentoConvertir.value)
+
+// Los errores del backend vienen por posición entre las que se llevan.
+function errorLinea (i) {
+  const n = lineas.value.slice(0, i).filter((l) => l.lleva).length
+  return lineas.value[i].lleva ? erroresConvertir.value[`items.${n}.cantidad`]?.[0] : undefined
+}
+
+async function convertir () {
+  accionando.value = 'convertir'
+  erroresConvertir.value = {}
+  try {
+    // Todo tal cual: sin `items` (convierte la cotización entera).
+    const todo = lineas.value.every((l) => l.lleva && Number(l.cantidad) === l.cotizada)
+    const items = todo ? undefined : lineas.value.filter((l) => l.lleva).map((l) => ({ variante_id: l.variante_id, cantidad: l.cantidad }))
+    const actualizada = await CotizacionService.convertir(detalle.value.id, items)
+    convertirDialog.value = false
+    detalleRef.value.actualizar(actualizada)
+    refrescar()
+    $q.notify({
+      type: 'positive',
+      message: `Se creó el pedido ${actualizada.pedido?.codigo}${todo ? '' : ' con lo que lleva el cliente'}: confirmalo desde Pedidos.`,
+      position: 'top-right',
+      timeout: 3500
+    })
+  } catch (error) {
+    const { status, data } = error.response ?? {}
+    if (status === 422) erroresConvertir.value = data?.errors ?? {}
+    const primero = Object.values(data?.errors ?? {})[0]?.[0]
+    if (status === 422 || status === 409) {
+      $q.notify({ type: 'negative', message: primero ?? data?.message, position: 'top-right', timeout: 4500 })
+    }
+  } finally {
+    accionando.value = null
+  }
+}
+
 async function ejecutar (accion) {
   accionando.value = accion
   try {
@@ -373,6 +573,66 @@ async function ejecutar (accion) {
   &:focus-visible {
     outline: 2px solid $primary;
     outline-offset: 2px;
+  }
+}
+
+.conv-ayuda {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--app-ink-2);
+}
+
+.conv-tablaWrap {
+  overflow-x: auto;
+}
+
+.conv-tabla {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+
+  th {
+    padding: 0 6px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    color: var(--app-ink-2);
+  }
+
+  td {
+    padding: 6px;
+    vertical-align: middle;
+    border-top: 1px solid var(--app-border-subtle);
+    font-size: 13px;
+    color: var(--app-ink);
+  }
+
+  .text-right {
+    text-align: right;
+  }
+}
+
+.conv-fila--fuera td {
+  opacity: 0.45;
+}
+
+.conv-producto {
+  font-weight: 600;
+}
+
+.conv-cantidad {
+  width: 140px;
+}
+
+.conv-total {
+  margin-top: 12px;
+  font-size: 13.5px;
+  text-align: right;
+  color: var(--app-ink-2);
+
+  strong {
+    font-size: 16px;
+    color: var(--app-ink);
   }
 }
 

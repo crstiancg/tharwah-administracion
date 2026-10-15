@@ -48,7 +48,8 @@ class StoreCotizacionRequest extends FormRequest
     public function rules(): array
     {
         $rules = [
-            'cotizacion.cliente_id' => ['required', 'integer', 'exists:clientes,id'],
+            // Opcional: "cotización sin nombre" para quien sólo pide precios.
+            'cotizacion.cliente_id' => ['nullable', 'integer', 'exists:clientes,id'],
             'cotizacion.valida_hasta' => ['required', 'date', 'after_or_equal:'.Fechas::hoyIso()],
             'cotizacion.condiciones' => ['nullable', 'string', 'max:500'],
             'cotizacion.observacion' => ['nullable', 'string', 'max:500'],
@@ -119,6 +120,7 @@ class StoreCotizacionRequest extends FormRequest
             'cotizacion.items.required' => 'Agregá al menos un producto.',
             'cotizacion.items.min' => 'Agregá al menos un producto.',
             'cotizacion.valida_hasta.after_or_equal' => 'La validez no puede ser una fecha pasada.',
+            'cotizacion.valida_hasta.required' => 'Poné hasta cuándo vale la cotización.',
         ];
     }
 

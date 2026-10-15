@@ -187,9 +187,10 @@ export const usePosStore = defineStore('pos', {
       this.seleccionado = this.items[Math.min(i, this.items.length - 1)]?.variante_id ?? null
     },
 
-    // Con un solo pago que no se tocó, el monto sigue al total.
+    // Con un solo pago el monto es siempre el total (en el carrito no se
+    // edita); `montoManual` sólo cuenta en pago mixto.
     sincronizarPagoUnico () {
-      if (this.pagos.length === 1 && !this.pagos[0].montoManual) {
+      if (this.pagos.length === 1) {
         this.pagos[0].monto = this.total.toFixed(2)
       }
     },
@@ -201,6 +202,8 @@ export const usePosStore = defineStore('pos', {
 
     quitarPago (j) {
       this.pagos.splice(j, 1)
+      // Vuelve a un solo pago: otra vez es el total.
+      this.sincronizarPagoUnico()
     },
 
     limpiar () {

@@ -10,8 +10,9 @@ class ComprobanteService {
   }
 
   // Emite el comprobante de un pedido ya vendido (confirmado o entregado).
-  static async emitir (pedidoId, tipo) {
-    return (await api.post(`api/pedidos/${pedidoId}/comprobantes`, { tipo })).data
+  // `clienteId`: a quién, si no es el cliente del pedido (queda en el pedido).
+  static async emitir (pedidoId, tipo, clienteId = null) {
+    return (await api.post(`api/pedidos/${pedidoId}/comprobantes`, { tipo, ...(clienteId ? { cliente_id: clienteId } : {}) })).data
   }
 
   // Reenvía el mismo comprobante (mismo número) que no llegó a SUNAT.

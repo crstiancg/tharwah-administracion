@@ -80,30 +80,22 @@
       v-if="puedeEmitir && vendido && (!comprobante || comprobante.estado === 'rechazado')"
       class="comprobante-bloque__acciones"
     >
+      <!-- Siempre habilitados: si el cliente no sirve (sin DNI / sin RUC),
+           el diálogo deja elegir o crear el que corresponde. -->
       <AppButton
         variant="secondary"
         label="Emitir boleta"
         icon="receipt_long"
-        :disable="Boolean(motivoNoPermitido('boleta', pedido.cliente, pedido.total))"
         :loading="trabajando === BOLETA"
-        @click="emitir(BOLETA)"
-      >
-        <q-tooltip v-if="motivoNoPermitido('boleta', pedido.cliente, pedido.total)">
-          {{ motivoNoPermitido('boleta', pedido.cliente, pedido.total) }}
-        </q-tooltip>
-      </AppButton>
+        @click="abrirEmision(BOLETA)"
+      />
       <AppButton
         variant="secondary"
         label="Emitir factura"
         icon="request_page"
-        :disable="Boolean(motivoNoPermitido('factura', pedido.cliente, pedido.total))"
         :loading="trabajando === FACTURA"
-        @click="emitir(FACTURA)"
-      >
-        <q-tooltip v-if="motivoNoPermitido('factura', pedido.cliente, pedido.total)">
-          {{ motivoNoPermitido('factura', pedido.cliente, pedido.total) }}
-        </q-tooltip>
-      </AppButton>
+        @click="abrirEmision(FACTURA)"
+      />
     </div>
     <p
       v-else-if="puedeEmitir && !vendido && !comprobante"
@@ -111,17 +103,116 @@
     >
       Se emite cuando el pedido está confirmado.
     </p>
+
+    <!-- ── A quién se emite ── -->
+    <AppDialog
+      v-model="emisionDialog"
+      :title="tipoEmision === FACTURA ? 'Emitir factura' : 'Emitir boleta'"
+      persistent
+    >
+      <div class="comprobante-bloque__emision">
+        <p class="comprobante-bloque__meta">
+          Por <strong>{{ formatearPrecio(pedido.total) }}</strong>.
+          <template v-if="tipoEmision === FACTURA">
+            La factura va a nombre de una empresa con RUC.
+          </template>
+          <template v-else-if="Number(pedido.total) >= BOLETA_MONTO_IDENTIFICADO">
+            Desde S/ {{ BOLETA_MONTO_IDENTIFICADO }} la boleta lleva el DNI del cliente.
+          </template>
+          <template v-else>
+            El cliente es opcional en una boleta de este monto.
+          </template>
+        </p>
+
+        <div class="comprobante-bloque__labelRow">
+          <label
+            :id="clienteLabelId"
+            class="comprobante-bloque__label"
+          >Cliente</label>
+          <button
+            v-if="userStore.hasPermission('clientes.store')"
+            type="button"
+            class="comprobante-bloque__link"
+            @click="clienteDialog = true"
+          >
+            + Nuevo cliente
+          </button>
+        </div>
+        <BuscadorCliente
+          v-model="clienteEmision"
+          :aria-labelledby="clienteLabelId"
+        />
+        <p
+          v-if="motivoEmision"
+          class="comprobante-bloque__aviso"
+          role="alert"
+        >
+          {{ motivoEmision }}
+        </p>
+        <p
+          v-else-if="clienteEmision && clienteEmision.id !== pedido.cliente?.id"
+          class="comprobante-bloque__meta"
+        >
+          El pedido queda a nombre de {{ clienteEmision.nombre }}.
+        </p>
+      </div>
+
+      <template #actions>
+        <AppButton
+          variant="tertiary"
+          label="Cancelar"
+          @click="emisionDialog = false"
+        />
+        <AppButton
+          variant="primary"
+          :label="tipoEmision === FACTURA ? 'Emitir factura' : 'Emitir boleta'"
+          :disable="Boolean(motivoEmision)"
+          :loading="trabajando === tipoEmision"
+          @click="emitir"
+        />
+      </template>
+    </AppDialog>
+
+    <AppDialog
+      v-model="clienteDialog"
+      title="Nuevo cliente"
+      persistent
+    >
+      <ClientesForm
+        v-if="clienteDialog"
+        ref="clienteFormRef"
+        @save="clienteCreado"
+        @existente="clienteCreado"
+      />
+      <template #actions>
+        <AppButton
+          variant="tertiary"
+          label="Cancelar"
+          @click="clienteDialog = false"
+        />
+        <AppButton
+          variant="primary"
+          label="Guardar cliente"
+          :loading="clienteFormRef?.form.processing"
+          @click="clienteFormRef.submit()"
+        />
+      </template>
+    </AppDialog>
   </section>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, useId } from 'vue'
 import { useQuasar } from 'quasar'
 import AppButton from '@/components/AppButton.vue'
 import AppChip from '@/components/AppChip.vue'
+import AppDialog from '@/components/AppDialog.vue'
+import ClientesForm from '@/modules/Clientes/ClientesForm.vue'
+import BuscadorCliente from '@/modules/Pedidos/BuscadorCliente.vue'
 import ComprobanteService from '@/services/ComprobanteService'
 import { useUserStore } from '@/stores/user-store'
-import { BOLETA, ESTADOS_SUNAT, FACTURA, motivoNoPermitido } from './constantes'
+import { formatearPrecio } from '@/utils/moneda'
+import { BOLETA, BOLETA_MONTO_IDENTIFICADO, ESTADOS_SUNAT, FACTURA, motivoNoPermitido } from './constantes'
 
 /**
  * El comprobante electrónico de un pedido en su detalle: estado ante SUNAT,
@@ -169,10 +260,39 @@ function errorDe (error) {
   return Object.values(data?.errors ?? {})[0]?.[0] ?? data?.message ?? 'No se pudo completar.'
 }
 
-async function emitir (tipo) {
+// ── Emitir: primero a quién ──
+const clienteLabelId = `comprobante-cliente-${useId()}`
+const emisionDialog = ref(false)
+const tipoEmision = ref(BOLETA)
+const clienteEmision = ref(null)
+
+const motivoEmision = computed(() => motivoNoPermitido(
+  tipoEmision.value === FACTURA ? 'factura' : 'boleta',
+  clienteEmision.value,
+  props.pedido.total
+))
+
+function abrirEmision (tipo) {
+  tipoEmision.value = tipo
+  clienteEmision.value = props.pedido.cliente ?? null
+  emisionDialog.value = true
+}
+
+const clienteDialog = ref(false)
+const clienteFormRef = ref()
+
+function clienteCreado (nuevo) {
+  clienteDialog.value = false
+  if (nuevo) clienteEmision.value = nuevo
+}
+
+async function emitir () {
+  const tipo = tipoEmision.value
   trabajando.value = tipo
   try {
-    avisar(await ComprobanteService.emitir(props.pedido.id, tipo))
+    const clienteId = clienteEmision.value?.id !== props.pedido.cliente?.id ? clienteEmision.value?.id : null
+    avisar(await ComprobanteService.emitir(props.pedido.id, tipo, clienteId))
+    emisionDialog.value = false
     emit('cambio')
   } catch (error) {
     $q.notify({ type: 'negative', message: errorDe(error), position: 'top-right', timeout: 5000 })
@@ -203,6 +323,42 @@ async function descargar (archivo) {
 </script>
 
 <style lang="scss" scoped>
+.comprobante-bloque__emision {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comprobante-bloque__labelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.comprobante-bloque__label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--app-ink);
+}
+
+.comprobante-bloque__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: $primary;
+  cursor: pointer;
+}
+
+.comprobante-bloque__aviso {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--q-negative);
+}
+
 .comprobante-bloque {
   display: flex;
   flex-direction: column;

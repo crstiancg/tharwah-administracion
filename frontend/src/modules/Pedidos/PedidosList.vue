@@ -167,6 +167,7 @@
     <AppDialog
       v-model="detalleDialog"
       title="Pedido"
+      size="lg"
     >
       <PedidoDetalle
         v-if="detalleId"
@@ -175,18 +176,14 @@
         :id="detalleId"
       />
 
+      <!-- A la izquierda lo que deshace o reimprime; a la derecha el paso
+           siguiente del pedido, con el principal al final. -->
       <template #actions>
         <AppButton
-          v-if="detalle && ['confirmado', 'entregado'].includes(detalle.estado)"
-          variant="tertiary"
-          label="Ticket"
-          icon="print"
-          @click="impresionRef.imprimir(detalle)"
-        />
-        <AppButton
           v-if="puede('cancelar')"
-          variant="tertiary"
+          variant="destructive"
           label="Cancelar pedido"
+          icon="block"
           :disable="Number(detalle.pagado) > 0"
           @click="pedirConfirmacion('cancelar')"
         >
@@ -202,18 +199,28 @@
           @click="abrirPago('devolver')"
         />
         <AppButton
-          v-if="puede('cobrar')"
-          variant="secondary"
-          label="Cobrar"
-          icon="payments"
-          @click="abrirPago('cobrar')"
+          v-if="detalle && ['confirmado', 'entregado'].includes(detalle.estado)"
+          variant="tertiary"
+          label="Ticket"
+          icon="print"
+          @click="impresionRef.imprimir(detalle)"
         />
+
+        <span class="pedido-acciones__espacio" />
+
         <AppButton
           v-if="puede('editar')"
           variant="secondary"
           label="Editar"
           icon="edit"
           @click="editar(detalle)"
+        />
+        <AppButton
+          v-if="puede('cobrar')"
+          variant="secondary"
+          label="Cobrar"
+          icon="payments"
+          @click="abrirPago('cobrar')"
         />
         <AppButton
           v-if="puede('confirmar')"
@@ -608,6 +615,11 @@ async function ejecutar (accion) {
 </script>
 
 <style lang="scss" scoped>
+// Separa los dos grupos de botones del detalle (ver template).
+.pedido-acciones__espacio {
+  flex: 1 1 auto;
+}
+
 .pedido-faltantes {
   display: flex;
   gap: 10px;

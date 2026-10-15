@@ -457,15 +457,19 @@ onBeforeUnmount(() => {
 <style lang="scss" scoped>
 // Ocupa todo el alto disponible bajo la barra de la app: el carrito no se
 // desplaza con la página, sólo su lista de líneas.
+// El carrito ocupa ~38% del ancho (pedido de caja: se leía chico); nunca
+// menos de 380 px ni más de 720 px.
 .pos {
+  --pos-carrito: clamp(380px, 38vw, 720px);
+
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr) 380px;
+  grid-template-columns: 230px minmax(0, 1fr) var(--pos-carrito);
   height: calc(100vh - var(--app-header-height, 65px));
   min-height: 560px;
   background: var(--app-bg, transparent);
 
   &--sinFiltros {
-    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-columns: minmax(0, 1fr) var(--pos-carrito);
   }
 
   @media (max-width: 1023px) {

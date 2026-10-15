@@ -104,6 +104,7 @@ const model = defineModel()
 
 .app-dialog__actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px;

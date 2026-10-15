@@ -30,7 +30,10 @@
     </header>
 
     <section class="cot-doc__cliente">
-      <div><strong>Cliente:</strong> {{ cotizacion.cliente?.nombre }}</div>
+      <!-- Sin cliente asignado: "Clientes varios", como en las ventas sin nombre. -->
+      <div>
+        <strong>Cliente:</strong> {{ cotizacion.cliente?.nombre ?? 'Clientes varios' }}
+      </div>
       <div v-if="cotizacion.cliente?.numero_documento">
         <strong>{{ cotizacion.cliente.tipo_documento }}:</strong> {{ cotizacion.cliente.numero_documento }}
       </div>

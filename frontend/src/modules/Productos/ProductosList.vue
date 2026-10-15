@@ -5,6 +5,14 @@
       :subtitle="`${pagination.rowsNumber} productos en catálogo`"
     >
       <template #actions>
+        <!-- Lo que se ve con los filtros de ahora, una fila por presentación. -->
+        <AppButton
+          variant="secondary"
+          label="Exportar Excel"
+          icon="mdi-microsoft-excel"
+          :loading="exportando"
+          @click="exportar"
+        />
         <AppButton
           v-if="userStore.hasPermission('productos.store')"
           variant="primary"
@@ -239,6 +247,7 @@ import AppFilterBar from '@/components/AppFilterBar.vue'
 import AppFilterPill from '@/components/AppFilterPill.vue'
 import AppPageHeader from '@/components/AppPageHeader.vue'
 import AppTable from '@/components/AppTable.vue'
+import { descargarArchivo } from '@/utils/descargar'
 import CategoriaService from '@/services/CategoriaService'
 import MarcaService from '@/services/MarcaService'
 import SedeService from '@/services/SedeService'
@@ -329,16 +338,21 @@ const rows = ref([])
 const loading = ref(false)
 const pagination = ref({ sortBy: 'id', descending: true, page: 1, rowsPerPage: 10, rowsNumber: 0 })
 
+// Los filtros de la pantalla, iguales para la tabla y el Excel.
+function filtrosActuales () {
+  const params = { search: busqueda.value, sede_id: sedeFilter.value }
+  if (categoriaFilter.value !== null) params.categoria_id = categoriaFilter.value
+  if (marcaFilter.value !== null) params.marca_id = marcaFilter.value
+  if (activoFilter.value !== null) params.activo = activoFilter.value
+  return params
+}
+
 async function onRequest ({ pagination: requested }) {
   const { page, rowsPerPage, sortBy, descending } = requested
   loading.value = true
 
   try {
-    const params = { rowsPerPage, page, search: busqueda.value, order_by: descending ? `-${sortBy}` : sortBy }
-    if (categoriaFilter.value !== null) params.categoria_id = categoriaFilter.value
-    params.sede_id = sedeFilter.value
-    if (marcaFilter.value !== null) params.marca_id = marcaFilter.value
-    if (activoFilter.value !== null) params.activo = activoFilter.value
+    const params = { rowsPerPage, page, order_by: descending ? `-${sortBy}` : sortBy, ...filtrosActuales() }
 
     const { data, total = 0 } = await ProductoService.getData({ params })
 
@@ -365,6 +379,21 @@ onMounted(() => {
   tableRef.value.requestServerInteraction()
   cargarCatalogos()
 })
+
+// ── Excel ──
+const exportando = ref(false)
+
+async function exportar () {
+  exportando.value = true
+  try {
+    const hoy = new Date().toLocaleDateString('en-CA')
+    await descargarArchivo('api/productos/exportar', `productos-${hoy}.xlsx`, filtrosActuales())
+  } catch {
+    $q.notify({ type: 'negative', message: 'No se pudo generar el Excel.', position: 'top-right' })
+  } finally {
+    exportando.value = false
+  }
+}
 
 // ── Crear / editar en diálogo ──
 const formDialog = ref(false)

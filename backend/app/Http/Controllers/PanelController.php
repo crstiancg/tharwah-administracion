@@ -134,7 +134,7 @@ class PanelController extends Controller
                 ->map(fn (Cotizacion $c) => [
                     'id' => $c->id,
                     'titulo' => $c->codigo,
-                    'detalle' => ($c->cliente?->nombre ?? '').' · S/ '.number_format((float) $c->total, 2).' · '.$c->estadoVisible(),
+                    'detalle' => ($c->cliente?->nombre ?? 'Sin cliente').' · S/ '.number_format((float) $c->total, 2).' · '.$c->estadoVisible(),
                     'to' => "/cotizaciones?ver={$c->id}",
                 ]);
         }

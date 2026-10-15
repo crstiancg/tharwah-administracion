@@ -11,12 +11,16 @@ use App\Models\Producto;
 use App\Models\Stock;
 use App\Models\Variante;
 use App\Services\ArchivosService;
+use App\Services\Exportaciones;
 use App\Services\Inventario;
+use App\Support\Permisos;
+use App\Models\Sede;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProductoController extends Controller
 {
@@ -24,19 +28,81 @@ class ProductoController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        // Por defecto, los productos de la sede del usuario (los que vende y
-        // su stock ahí); con `sede_id=0`, todo el catálogo y el stock total.
-        $sedeId = $request->has('sede_id') ? $request->integer('sede_id') : $request->user()->sede_id;
+        $sedeId = $this->sedeConsultada($request);
 
         $query = Producto::query()
             ->with(['categoria:id,nombre', 'marca:id,nombre', 'portada'])
             ->withCount('variantes');
 
         if ($sedeId) {
-            $query->whereHas('variantes', fn (Builder $v) => $v->habilitadaEnSede($sedeId))
-                ->withSum(['stocks as stock_total' => fn ($q) => $q->where('stocks.sede_id', $sedeId)], 'cantidad');
+            $query->withSum(['stocks as stock_total' => fn ($q) => $q->where('stocks.sede_id', $sedeId)], 'cantidad');
         } else {
             $query->withSum('variantes as stock_total', 'stock');
+        }
+
+        $this->filtrar($request, $query, $sedeId);
+
+        return $this->generateViewSetList(
+            $request,
+            $query,
+            ['activo'],
+            [],
+            ['id', 'nombre', 'precio', 'activo'],
+            ProductoResource::class,
+        );
+    }
+
+    /**
+     * La lista de productos en Excel, con los mismos filtros que la pantalla
+     * y una fila por presentación.
+     */
+    public function exportar(Request $request, Exportaciones $exportar): StreamedResponse
+    {
+        $sedeId = $this->sedeConsultada($request);
+
+        $productos = Producto::query();
+        $this->filtrar($request, $productos, $sedeId);
+        if ($request->filled('activo')) {
+            $productos->where('activo', $request->boolean('activo'));
+        }
+
+        // select antes del join: si no, el id de productos pisa el de la variante.
+        $variantes = Variante::query()
+            ->select('variantes.*')
+            ->whereIn('variantes.producto_id', $productos->select('productos.id'))
+            ->when($sedeId, fn (Builder $q) => $q->habilitadaEnSede($sedeId)->conStockDeSede($sedeId))
+            ->with(['producto:id,nombre,precio,activo,categoria_id,marca_id', 'producto.categoria:id,nombre', 'producto.marca:id,nombre', 'unidad:id,abreviatura', 'color:id,nombre'])
+            ->join('productos', 'productos.id', '=', 'variantes.producto_id')
+            ->orderBy('productos.nombre')
+            ->orderBy('variantes.id')
+            ->get();
+
+        $conCosto = Permisos::puede($request->user(), 'productos.update') || Permisos::puede($request->user(), 'reportes.ventas');
+        $sede = $sedeId ? Sede::query()->whereKey($sedeId)->value('nombre') : null;
+
+        return $exportar->descargar(
+            $exportar->productos($variantes, $sede, $conCosto),
+            'productos-'.now()->format('Y-m-d').'.xlsx',
+        );
+    }
+
+    /**
+     * Por defecto, los productos de la sede del usuario (los que vende y su
+     * stock ahí); con `sede_id=0`, todo el catálogo y el stock total.
+     */
+    private function sedeConsultada(Request $request): int
+    {
+        return $request->has('sede_id') ? $request->integer('sede_id') : (int) $request->user()->sede_id;
+    }
+
+    /**
+     * Los filtros de la lista (sede, categoría con sus subcategorías, marca y
+     * búsqueda), compartidos con la exportación.
+     */
+    private function filtrar(Request $request, Builder $query, int $sedeId): void
+    {
+        if ($sedeId) {
+            $query->whereHas('variantes', fn (Builder $v) => $v->habilitadaEnSede($sedeId));
         }
 
         // Filtrar por "Impermeabilizantes" trae también lo de sus subcategorías.
@@ -62,15 +128,6 @@ class ProductoController extends Controller
                     ->where('sku', 'like', $term)
                     ->orWhere('codigo_barras', 'like', $term)));
         }
-
-        return $this->generateViewSetList(
-            $request,
-            $query,
-            ['activo'],
-            [],
-            ['id', 'nombre', 'precio', 'activo'],
-            ProductoResource::class,
-        );
     }
 
     public function store(StoreProductoRequest $request): JsonResponse

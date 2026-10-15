@@ -67,12 +67,18 @@ class Cotizaciones
     }
 
     /**
-     * El cliente aceptó: nace un pedido PENDIENTE con los mismos ítems y
-     * precios (se confirma, cobra y entrega por el flujo de pedidos).
+     * El cliente aceptó: nace un pedido PENDIENTE con los precios cotizados
+     * (se confirma, cobra y entrega por el flujo de pedidos).
+     *
+     * `$elegidos` ([{variante_id, cantidad}]): lo que de verdad pide, si no
+     * es todo. Sólo ítems de la cotización y sin pasar la cantidad cotizada;
+     * el descuento se reparte en proporción a lo que queda. null = todo.
+     *
+     * @param  array<int, array{variante_id: int, cantidad: float|string}>|null  $elegidos
      */
-    public function convertir(Cotizacion $cotizacion, User $usuario): Pedido
+    public function convertir(Cotizacion $cotizacion, User $usuario, ?array $elegidos = null): Pedido
     {
-        return DB::transaction(function () use ($cotizacion, $usuario) {
+        return DB::transaction(function () use ($cotizacion, $usuario, $elegidos) {
             $cotizacion = Cotizacion::query()->whereKey($cotizacion->id)->lockForUpdate()->firstOrFail();
             $this->exigirPendiente($cotizacion, 'convertir');
 
@@ -82,22 +88,78 @@ class Cotizaciones
                 ])->status(409);
             }
 
+            $items = $this->itemsElegidos($cotizacion, $elegidos);
+            $subtotal = collect($items)->sum(fn ($i) => round((float) $i['cantidad'] * (float) $i['precio_unitario'], 2));
+            $descuento = (float) $cotizacion->subtotal > 0
+                ? min($subtotal, round((float) $cotizacion->descuento * $subtotal / (float) $cotizacion->subtotal, 2))
+                : 0.0;
+
             $pedido = $this->pedidos->guardar(new Pedido, [
                 'cliente_id' => $cotizacion->cliente_id,
                 'canal' => 'cotizacion',
-                'descuento' => $cotizacion->descuento,
+                'descuento' => $descuento,
                 'observacion' => mb_substr("Cotización {$cotizacion->codigo}".($cotizacion->condiciones ? " · {$cotizacion->condiciones}" : ''), 0, 500),
-                'items' => $cotizacion->items()->orderBy('id')->get()->map(fn ($i) => [
-                    'variante_id' => $i->variante_id,
-                    'cantidad' => $i->cantidad,
-                    'precio_unitario' => $i->precio_unitario,
-                ])->all(),
+                'items' => $items,
             ], $usuario);
 
             $cotizacion->forceFill(['estado' => Cotizacion::CONVERTIDA, 'pedido_id' => $pedido->id])->save();
 
             return $pedido;
         });
+    }
+
+    /**
+     * Las líneas del pedido: todas las de la cotización o sólo las elegidas
+     * (con su cantidad, nunca mayor a la cotizada), al precio cotizado.
+     *
+     * @return array<int, array{variante_id: int, cantidad: float, precio_unitario: string}>
+     */
+    private function itemsElegidos(Cotizacion $cotizacion, ?array $elegidos): array
+    {
+        $cotizados = $cotizacion->items()->with('variante.unidad:id,fraccionable')->orderBy('id')->get()->keyBy('variante_id');
+
+        if ($elegidos === null) {
+            return $cotizados->map(fn ($i) => [
+                'variante_id' => $i->variante_id,
+                'cantidad' => $i->cantidad,
+                'precio_unitario' => $i->precio_unitario,
+            ])->values()->all();
+        }
+
+        $errores = [];
+        $items = [];
+        foreach (array_values($elegidos) as $n => $elegido) {
+            $cotizado = $cotizados->get((int) $elegido['variante_id']);
+            if (! $cotizado) {
+                $errores["items.{$n}.variante_id"] = 'Ese producto no está en la cotización.';
+
+                continue;
+            }
+            if ((float) $elegido['cantidad'] - (float) $cotizado->cantidad > 0.0005) {
+                $errores["items.{$n}.cantidad"] = 'No puede ser más de lo cotizado ('.Inventario::formatear((float) $cotizado->cantidad).').';
+
+                continue;
+            }
+            if (! $cotizado->variante->unidad?->fraccionable && floor((float) $elegido['cantidad']) != (float) $elegido['cantidad']) {
+                $errores["items.{$n}.cantidad"] = 'Esta presentación se vende por unidad entera.';
+
+                continue;
+            }
+            $items[] = [
+                'variante_id' => $cotizado->variante_id,
+                'cantidad' => round((float) $elegido['cantidad'], 3),
+                'precio_unitario' => $cotizado->precio_unitario,
+            ];
+        }
+
+        if (! $items && ! $errores) {
+            $errores['items'] = 'Elegí al menos un producto.';
+        }
+        if ($errores) {
+            throw ValidationException::withMessages($errores);
+        }
+
+        return $items;
     }
 
     public function rechazar(Cotizacion $cotizacion): Cotizacion

@@ -6,10 +6,12 @@ use App\Http\Requests\StoreCotizacionRequest;
 use App\Http\Resources\CotizacionResource;
 use App\Models\Cotizacion;
 use App\Services\Cotizaciones;
+use App\Services\Exportaciones;
 use App\Support\Fechas;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Las cotizaciones no se borran: se rechazan o se convierten en pedido. Sólo
@@ -85,9 +87,26 @@ class CotizacionController extends Controller
      */
     public function convertir(Request $request, Cotizacion $cotizacion): JsonResponse
     {
-        $this->cotizaciones->convertir($cotizacion, $request->user());
+        // Opcional: sólo lo que de verdad pide el cliente (sin `items`, todo).
+        $datos = $request->validate([
+            'items' => ['sometimes', 'array', 'min:1'],
+            'items.*.variante_id' => ['required', 'integer'],
+            'items.*.cantidad' => ['required', 'numeric', 'gt:0', 'max:99999999.999'],
+        ], [
+            'items.min' => 'Elegí al menos un producto.',
+        ], [
+            'items.*.cantidad' => 'cantidad',
+        ]);
+
+        $this->cotizaciones->convertir($cotizacion, $request->user(), $datos['items'] ?? null);
 
         return response()->json($this->conDetalle($cotizacion->refresh()));
+    }
+
+    /** La cotización en Excel, como el PDF. */
+    public function excel(Cotizacion $cotizacion, Exportaciones $exportar): StreamedResponse
+    {
+        return $exportar->descargar($exportar->cotizacion($cotizacion), "{$cotizacion->codigo}.xlsx");
     }
 
     public function rechazar(Cotizacion $cotizacion): JsonResponse
