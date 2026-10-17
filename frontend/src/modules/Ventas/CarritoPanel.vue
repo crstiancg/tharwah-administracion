@@ -22,6 +22,7 @@
           icon="sell"
           label="Por mayor"
           :aria-pressed="String(pos.ventaPorMayor)"
+          :loading="actualizandoPrecios"
           class="carrito__porMayor"
           @click="alternarVentaPorMayor"
         >
@@ -204,7 +205,7 @@
               :class="['linea__mayor', { 'linea__mayor--activo': pos.esPorMayor(item) }]"
               :aria-pressed="String(pos.esPorMayor(item))"
               :title="pos.esPorMayor(item) ? 'Volver al precio normal' : `Cobrar por mayor (${formatearPrecio(item.precio_mayor)})`"
-              @click.stop="pos.alternarPorMayor(item.variante_id)"
+              @click.stop="alternarPorMayorLinea(item)"
             >
               Por mayor
             </button>
@@ -531,6 +532,7 @@ import CerrarCajaForm from '@/modules/Caja/CerrarCajaForm.vue'
 import { avisoCierre, CON_OPERACION, HORA_AVISO_CIERRE, METODOS } from '@/modules/Caja/constantes'
 import { motivoNoPermitido } from '@/modules/Comprobantes/constantes'
 import BuscadorCliente from '@/modules/Pedidos/BuscadorCliente.vue'
+import InventarioService from '@/services/InventarioService'
 import CajaService from '@/services/CajaService'
 import VentaService from '@/services/VentaService'
 import { usePosStore } from '@/stores/pos-store'
@@ -663,7 +665,34 @@ function cambiar (item, delta) {
   if (pos.cambiarCantidad(item.variante_id, delta) === 'sin-stock') beepError()
 }
 
-function alternarVentaPorMayor () {
+// Antes de cambiar a (o desde) precio por mayor se traen los precios de
+// hoy: si los editaron después de agregar los productos, vale el nuevo.
+const actualizandoPrecios = ref(false)
+
+async function precioActual (ids) {
+  if (!ids.length) return
+  actualizandoPrecios.value = true
+  try {
+    const { data } = await InventarioService.variantes({ params: { ids: ids.join(','), rowsPerPage: 0 } })
+    pos.refrescarPrecios(data)
+  } catch {
+    // Sin conexión: se sigue con los precios que ya tiene el carrito.
+  } finally {
+    actualizandoPrecios.value = false
+  }
+}
+
+async function alternarPorMayorLinea (item) {
+  await precioActual([item.variante_id])
+  if (!pos.tienePrecioMayor(item)) {
+    $q.notify({ type: 'warning', message: `${item.sku} ya no tiene precio por mayor.`, position: 'top-right', timeout: 2500 })
+    return
+  }
+  pos.alternarPorMayor(item.variante_id)
+}
+
+async function alternarVentaPorMayor () {
+  await precioActual(pos.items.map((i) => i.variante_id))
   pos.alternarVentaPorMayor()
   const sinPrecioMayor = pos.items.filter((i) => !pos.tienePrecioMayor(i)).length
   $q.notify({

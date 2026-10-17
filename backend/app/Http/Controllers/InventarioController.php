@@ -100,6 +100,12 @@ class InventarioController extends Controller
                 ->orWhere('variantes.sku', $codigo));
         }
 
+        // Varias por id (`ids=1,2,3`): el punto de venta refresca los precios
+        // de lo que ya tiene en el carrito.
+        if ($request->filled('ids')) {
+            $query->whereIn('variantes.id', array_filter(array_map('intval', explode(',', (string) $request->input('ids')))));
+        }
+
         // "Por reponer": en la sede, por debajo del mínimo.
         if ($request->boolean('bajo_minimo') && $sedeId) {
             $query->whereHas('stocks', fn (Builder $s) => $s
