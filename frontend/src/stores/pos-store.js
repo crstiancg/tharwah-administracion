@@ -86,10 +86,16 @@ export const usePosStore = defineStore('pos', {
     pagos: [nuevoPago()],
     // variante_id de la línea activa (para + / − / Supr desde el teclado).
     seleccionado: null,
+    // El vendedor vende TODO a precio por mayor, sea cual sea el cliente.
+    ventaPorMayor: false,
     espera: []
   }),
 
   getters: {
+    // A quién se le "cobra como mayorista": el cliente mayorista o, con el
+    // botón Precio por mayor prendido, cualquiera.
+    clienteParaPrecio: (s) => (s.ventaPorMayor ? { ...(s.cliente ?? {}), mayorista: true } : s.cliente),
+
     unidades: (s) => redondearCantidad(s.items.reduce((suma, i) => suma + i.cantidad, 0)),
     subtotal: (s) => redondear(s.items.reduce((suma, i) => suma + i.cantidad * numero(i.precio_unitario), 0)),
     total () {
@@ -123,7 +129,7 @@ export const usePosStore = defineStore('pos', {
         existente.cantidad++
         existente.stock = linea.stock
       } else {
-        const { precio, porMayor } = precioPara(linea.precio_hoy ?? linea.precio_unitario, linea.precio_mayor, this.cliente)
+        const { precio, porMayor } = precioPara(linea.precio_hoy ?? linea.precio_unitario, linea.precio_mayor, this.clienteParaPrecio)
         this.items.push({ ...linea, cantidad: 1, precio_unitario: precio, precio_auto: precio, por_mayor: porMayor })
       }
       this.seleccionado = linea.variante_id
@@ -166,13 +172,80 @@ export const usePosStore = defineStore('pos', {
     },
 
     /**
+     * Precios y stock de hoy para las líneas del carrito (`variantes` del
+     * buscador de inventario): si cambiaron el precio por mayor o el normal
+     * después de agregarlas, el carrito toma el nuevo. Las líneas con un
+     * precio puesto a mano por el vendedor conservan ese precio.
+     */
+    refrescarPrecios (variantes) {
+      for (const v of variantes) {
+        const item = this.items.find((i) => i.variante_id === v.id)
+        if (!item) continue
+        const automatico = item.precio_auto !== undefined && item.precio_unitario === item.precio_auto
+        item.precio_hoy = Number(v.precio ?? item.precio_hoy).toFixed(2)
+        item.precio_lista = Number(v.precio_lista ?? v.precio ?? item.precio_lista).toFixed(2)
+        item.precio_mayor = v.precio_mayor ?? null
+        item.stock = v.stock
+        if (automatico) {
+          const { precio, porMayor } = precioPara(item.precio_hoy, item.precio_mayor, this.clienteParaPrecio)
+          // Lo elegido línea por línea se respeta: sólo cambia el monto.
+          const elegido = item.mayorElegido && item.por_mayor && item.precio_mayor !== null
+          item.precio_unitario = elegido ? Number(item.precio_mayor).toFixed(2) : precio
+          item.precio_auto = item.precio_unitario
+          item.por_mayor = elegido || porMayor
+        }
+      }
+    },
+
+    /**
+     * Botón "Precio por mayor": toda la venta pasa al precio por mayor (las
+     * presentaciones que lo tienen), o vuelve al normal. Pisa lo que se
+     * eligió línea por línea; después se puede seguir ajustando cada una.
+     */
+    alternarVentaPorMayor () {
+      this.ventaPorMayor = !this.ventaPorMayor
+      for (const item of this.items) {
+        delete item.mayorElegido
+        item.precio_auto = item.precio_unitario
+      }
+      this.aplicarCliente()
+    },
+
+    /** Si la presentación tiene un precio por mayor más bajo que el de hoy. */
+    tienePrecioMayor (item) {
+      const mayor = item.precio_mayor
+      return mayor !== null && mayor !== undefined && mayor !== '' && Number(mayor) < Number(item.precio_hoy ?? item.precio_unitario)
+    },
+
+    /** La línea se está cobrando al precio por mayor. */
+    esPorMayor (item) {
+      return this.tienePrecioMayor(item) && Number(item.precio_unitario) === Number(item.precio_mayor)
+    },
+
+    /**
+     * El vendedor decide: precio por mayor o normal en esa línea, sin
+     * importar el cliente. Queda fijo (cambiar de cliente ya no lo toca).
+     */
+    alternarPorMayor (varianteId) {
+      const item = this.items.find((i) => i.variante_id === varianteId)
+      if (!item || !this.tienePrecioMayor(item)) return
+
+      const precio = this.esPorMayor(item) ? Number(item.precio_hoy).toFixed(2) : Number(item.precio_mayor).toFixed(2)
+      item.precio_unitario = precio
+      item.precio_auto = precio
+      item.por_mayor = Number(precio) === Number(item.precio_mayor)
+      item.mayorElegido = true
+    },
+
+    /**
      * Cliente mayorista ↔ no mayorista: las líneas pasan al precio que le
-     * toca. Las que el vendedor cambió a mano no se tocan.
+     * toca. Las que el vendedor cambió a mano (o eligió por mayor o normal)
+     * no se tocan.
      */
     aplicarCliente () {
       for (const item of this.items) {
-        if (item.precio_auto === undefined || item.precio_unitario !== item.precio_auto) continue
-        const { precio, porMayor } = precioPara(item.precio_hoy ?? item.precio_unitario, item.precio_mayor, this.cliente)
+        if (item.mayorElegido || item.precio_auto === undefined || item.precio_unitario !== item.precio_auto) continue
+        const { precio, porMayor } = precioPara(item.precio_hoy ?? item.precio_unitario, item.precio_mayor, this.clienteParaPrecio)
         item.precio_unitario = precio
         item.precio_auto = precio
         item.por_mayor = porMayor
@@ -211,6 +284,7 @@ export const usePosStore = defineStore('pos', {
       this.cliente = null
       if (this.comprobante === 'factura') this.comprobante = 'ticket'
       this.descuento = ''
+      this.ventaPorMayor = false
       this.pagos = [nuevoPago()]
       this.seleccionado = null
     },
@@ -224,7 +298,8 @@ export const usePosStore = defineStore('pos', {
         fecha: new Date().toISOString(),
         items: this.items,
         cliente: this.cliente,
-        descuento: this.descuento
+        descuento: this.descuento,
+        ventaPorMayor: this.ventaPorMayor
       })
       this.limpiar()
       return true
@@ -239,6 +314,7 @@ export const usePosStore = defineStore('pos', {
       this.items = venta.items
       this.cliente = venta.cliente
       this.descuento = venta.descuento
+      this.ventaPorMayor = Boolean(venta.ventaPorMayor)
       this.pagos = [nuevoPago()]
       this.seleccionado = venta.items[0]?.variante_id ?? null
       this.sincronizarPagoUnico()
@@ -256,6 +332,7 @@ export const usePosStore = defineStore('pos', {
         this.items = guardado.items ?? []
         this.cliente = guardado.cliente ?? null
         this.descuento = guardado.descuento ?? ''
+        this.ventaPorMayor = Boolean(guardado.ventaPorMayor)
         this.espera = guardado.espera ?? []
         this.comprobante = guardado.comprobante ?? 'ticket'
         this.pagos = [nuevoPago()]
@@ -268,7 +345,7 @@ export const usePosStore = defineStore('pos', {
     persistir () {
       try {
         localStorage.setItem(CLAVE, JSON.stringify({
-          items: this.items, cliente: this.cliente, descuento: this.descuento, espera: this.espera, comprobante: this.comprobante
+          items: this.items, cliente: this.cliente, descuento: this.descuento, ventaPorMayor: this.ventaPorMayor, espera: this.espera, comprobante: this.comprobante
         }))
       } catch {
         // Sin storage (modo privado, cuota): la venta sigue, sólo no se recuerda.

@@ -402,6 +402,16 @@ function atajos (evento) {
     return
   }
 
+  // Resumen de la venta abierto: Enter o F9 confirman el cobro (Esc lo
+  // cierra el diálogo). Nada más: ni + / − ni Supr sobre las líneas.
+  if (carritoRef.value?.resumenAbierto) {
+    if (evento.key === 'Enter' || evento.key === 'F9') {
+      evento.preventDefault()
+      carritoRef.value.cobrar()
+    }
+    return
+  }
+
   if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === 'k') {
     evento.preventDefault()
     buscarRef.value?.focus()
