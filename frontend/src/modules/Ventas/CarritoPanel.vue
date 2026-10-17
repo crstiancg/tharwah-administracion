@@ -180,11 +180,18 @@
               :aria-label="`Precio unitario de ${item.sku}`"
               @click.stop
             >
-            <span
-              v-if="item.por_mayor && item.precio_unitario === item.precio_auto"
-              class="linea__mayor"
-              title="Precio por mayor (cliente mayorista)"
-            >Por mayor</span>
+            <!-- Sólo si la presentación tiene precio por mayor: el vendedor
+                 lo prende o lo apaga, sea o no un cliente mayorista. -->
+            <button
+              v-if="pos.tienePrecioMayor(item)"
+              type="button"
+              :class="['linea__mayor', { 'linea__mayor--activo': pos.esPorMayor(item) }]"
+              :aria-pressed="String(pos.esPorMayor(item))"
+              :title="pos.esPorMayor(item) ? 'Volver al precio normal' : `Cobrar por mayor (${formatearPrecio(item.precio_mayor)})`"
+              @click.stop="pos.alternarPorMayor(item.variante_id)"
+            >
+              Por mayor
+            </button>
             <span class="linea__total text-mono">
               <s
                 v-if="Number(item.precio_lista) > Number(item.precio_unitario)"
@@ -1162,16 +1169,30 @@ defineExpose({ cobrar, enfocarCliente })
   }
 }
 
+// Apagado: contorno (se puede activar). Prendido: relleno de marca.
 .linea__mayor {
   align-self: center;
-  padding: 0 6px;
+  padding: 0 7px;
+  border: 1px dashed var(--app-border-control);
   border-radius: 999px;
-  background: var(--app-brand-soft);
+  background: transparent;
   font-size: 10.5px;
   font-weight: 700;
   line-height: 17px;
-  color: var(--app-brand-soft-ink);
+  color: var(--app-ink-2);
   white-space: nowrap;
+  cursor: pointer;
+
+  &--activo {
+    border: 1px solid transparent;
+    background: var(--app-brand-soft);
+    color: var(--app-brand-soft-ink);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $primary;
+    outline-offset: 1px;
+  }
 }
 
 .carrito__fila--igv {

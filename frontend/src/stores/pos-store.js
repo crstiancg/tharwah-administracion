@@ -165,13 +165,40 @@ export const usePosStore = defineStore('pos', {
       return 'ok'
     },
 
+    /** Si la presentación tiene un precio por mayor más bajo que el de hoy. */
+    tienePrecioMayor (item) {
+      const mayor = item.precio_mayor
+      return mayor !== null && mayor !== undefined && mayor !== '' && Number(mayor) < Number(item.precio_hoy ?? item.precio_unitario)
+    },
+
+    /** La línea se está cobrando al precio por mayor. */
+    esPorMayor (item) {
+      return this.tienePrecioMayor(item) && Number(item.precio_unitario) === Number(item.precio_mayor)
+    },
+
+    /**
+     * El vendedor decide: precio por mayor o normal en esa línea, sin
+     * importar el cliente. Queda fijo (cambiar de cliente ya no lo toca).
+     */
+    alternarPorMayor (varianteId) {
+      const item = this.items.find((i) => i.variante_id === varianteId)
+      if (!item || !this.tienePrecioMayor(item)) return
+
+      const precio = this.esPorMayor(item) ? Number(item.precio_hoy).toFixed(2) : Number(item.precio_mayor).toFixed(2)
+      item.precio_unitario = precio
+      item.precio_auto = precio
+      item.por_mayor = Number(precio) === Number(item.precio_mayor)
+      item.mayorElegido = true
+    },
+
     /**
      * Cliente mayorista ↔ no mayorista: las líneas pasan al precio que le
-     * toca. Las que el vendedor cambió a mano no se tocan.
+     * toca. Las que el vendedor cambió a mano (o eligió por mayor o normal)
+     * no se tocan.
      */
     aplicarCliente () {
       for (const item of this.items) {
-        if (item.precio_auto === undefined || item.precio_unitario !== item.precio_auto) continue
+        if (item.mayorElegido || item.precio_auto === undefined || item.precio_unitario !== item.precio_auto) continue
         const { precio, porMayor } = precioPara(item.precio_hoy ?? item.precio_unitario, item.precio_mayor, this.cliente)
         item.precio_unitario = precio
         item.precio_auto = precio
