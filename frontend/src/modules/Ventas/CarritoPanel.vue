@@ -11,6 +11,22 @@
         </div>
       </div>
       <div class="carrito__espera">
+        <!-- Toda la venta a precio por mayor, sea cual sea el cliente. -->
+        <q-btn
+          :flat="!pos.ventaPorMayor"
+          :unelevated="pos.ventaPorMayor"
+          :color="pos.ventaPorMayor ? 'primary' : undefined"
+          dense
+          no-caps
+          size="sm"
+          icon="sell"
+          label="Por mayor"
+          :aria-pressed="String(pos.ventaPorMayor)"
+          class="carrito__porMayor"
+          @click="alternarVentaPorMayor"
+        >
+          <q-tooltip>{{ pos.ventaPorMayor ? 'Volver a precios normales' : 'Cobrar toda la venta a precio por mayor' }}</q-tooltip>
+        </q-btn>
         <q-btn
           flat
           dense
@@ -645,6 +661,19 @@ function fijar (item, evento) {
 
 function cambiar (item, delta) {
   if (pos.cambiarCantidad(item.variante_id, delta) === 'sin-stock') beepError()
+}
+
+function alternarVentaPorMayor () {
+  pos.alternarVentaPorMayor()
+  const sinPrecioMayor = pos.items.filter((i) => !pos.tienePrecioMayor(i)).length
+  $q.notify({
+    type: pos.ventaPorMayor ? 'info' : 'positive',
+    message: pos.ventaPorMayor
+      ? `Venta a precio por mayor.${sinPrecioMayor ? ` ${sinPrecioMayor} ${sinPrecioMayor === 1 ? 'producto no tiene' : 'productos no tienen'} precio por mayor: quedan a precio normal.` : ''}`
+      : 'Precios normales otra vez.',
+    position: 'top-right',
+    timeout: 2500
+  })
 }
 
 function aparcar () {
