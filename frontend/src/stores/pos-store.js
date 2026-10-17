@@ -172,6 +172,32 @@ export const usePosStore = defineStore('pos', {
     },
 
     /**
+     * Precios y stock de hoy para las líneas del carrito (`variantes` del
+     * buscador de inventario): si cambiaron el precio por mayor o el normal
+     * después de agregarlas, el carrito toma el nuevo. Las líneas con un
+     * precio puesto a mano por el vendedor conservan ese precio.
+     */
+    refrescarPrecios (variantes) {
+      for (const v of variantes) {
+        const item = this.items.find((i) => i.variante_id === v.id)
+        if (!item) continue
+        const automatico = item.precio_auto !== undefined && item.precio_unitario === item.precio_auto
+        item.precio_hoy = Number(v.precio ?? item.precio_hoy).toFixed(2)
+        item.precio_lista = Number(v.precio_lista ?? v.precio ?? item.precio_lista).toFixed(2)
+        item.precio_mayor = v.precio_mayor ?? null
+        item.stock = v.stock
+        if (automatico) {
+          const { precio, porMayor } = precioPara(item.precio_hoy, item.precio_mayor, this.clienteParaPrecio)
+          // Lo elegido línea por línea se respeta: sólo cambia el monto.
+          const elegido = item.mayorElegido && item.por_mayor && item.precio_mayor !== null
+          item.precio_unitario = elegido ? Number(item.precio_mayor).toFixed(2) : precio
+          item.precio_auto = item.precio_unitario
+          item.por_mayor = elegido || porMayor
+        }
+      }
+    },
+
+    /**
      * Botón "Precio por mayor": toda la venta pasa al precio por mayor (las
      * presentaciones que lo tienen), o vuelve al normal. Pisa lo que se
      * eligió línea por línea; después se puede seguir ajustando cada una.
