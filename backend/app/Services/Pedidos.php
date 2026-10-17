@@ -49,11 +49,13 @@ class Pedidos
             $pedido->items()->delete();
             $subtotal = 0.0;
 
-            // Por mayor: cliente mayorista y la presentación tiene ese precio.
-            $mayorista = (bool) $pedido->cliente()->value('mayorista');
-            $preciosMayor = $mayorista
-                ? Variante::query()->whereKey(collect($datos['items'])->pluck('variante_id'))->pluck('precio_mayor', 'id')
-                : collect();
+            // Por mayor: la línea se cobra al precio por mayor de la
+            // presentación (lo aplica solo un cliente mayorista o lo elige el
+            // vendedor en el punto de venta).
+            $preciosMayor = Variante::query()
+                ->whereKey(collect($datos['items'])->pluck('variante_id'))
+                ->whereNotNull('precio_mayor')
+                ->pluck('precio_mayor', 'id');
 
             foreach ($datos['items'] as $item) {
                 $linea = round((float) $item['cantidad'] * (float) $item['precio_unitario'], 2);
@@ -63,7 +65,8 @@ class Pedidos
                     'variante_id' => $item['variante_id'],
                     'cantidad' => $item['cantidad'],
                     'precio_unitario' => $item['precio_unitario'],
-                    'por_mayor' => $preciosMayor->get($item['variante_id']) !== null,
+                    'por_mayor' => $preciosMayor->has($item['variante_id'])
+                        && abs((float) $preciosMayor->get($item['variante_id']) - (float) $item['precio_unitario']) < 0.005,
                     'subtotal' => $linea,
                 ]);
             }
