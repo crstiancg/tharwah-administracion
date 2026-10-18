@@ -27,6 +27,9 @@ class Pedido extends Model
 
     public const CANCELADO = 'cancelado';
 
+    /** Una venta (confirmada o entregada) que se deshizo: volvió stock y plata. */
+    public const ANULADO = 'anulado';
+
     public const CANALES = [
         'mostrador' => 'Mostrador',
         'whatsapp' => 'WhatsApp',
@@ -59,6 +62,7 @@ class Pedido extends Model
             'confirmado_at' => 'datetime',
             'entregado_at' => 'datetime',
             'cancelado_at' => 'datetime',
+            'anulado_at' => 'datetime',
         ];
     }
 
@@ -91,6 +95,11 @@ class Pedido extends Model
     public function usuario(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function anuladoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'anulado_por');
     }
 
     public function movimientos(): HasMany

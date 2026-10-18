@@ -255,6 +255,41 @@ class Cajas
         });
     }
 
+    /**
+     * Devuelve TODO lo cobrado de un pedido (al anular la venta), por el
+     * mismo método con que se pagó, desde la caja abierta de hoy. Se llama
+     * dentro de la transacción de Pedidos::anular().
+     *
+     * @return array<int, Pago>  las devoluciones registradas
+     */
+    public function devolverTodo(Pedido $pedido, string $motivo, ?User $usuario): array
+    {
+        $porMetodo = $pedido->pagos()
+            ->selectRaw('metodo, SUM(monto) as neto')
+            ->groupBy('metodo')
+            ->pluck('neto', 'metodo')
+            ->map(fn ($neto) => round((float) $neto, 2))
+            ->filter(fn ($neto) => $neto > 0);
+
+        if ($porMetodo->isEmpty()) {
+            return [];
+        }
+
+        $caja = $this->cajaAbiertaBloqueada($usuario);
+        if ($porMetodo->has(Pago::EFECTIVO)) {
+            $this->exigirEfectivo($caja, $porMetodo[Pago::EFECTIVO], 'pedido');
+        }
+
+        return $porMetodo->map(fn ($neto, $metodo) => Pago::create([
+            'pedido_id' => $pedido->id,
+            'caja_id' => $caja->id,
+            'metodo' => $metodo,
+            'monto' => -$neto,
+            'motivo' => mb_substr("Venta anulada: {$motivo}", 0, 200),
+            'user_id' => $usuario?->id,
+        ]))->values()->all();
+    }
+
     public function movimiento(string $tipo, float $monto, string $concepto, ?User $usuario): MovimientoCaja
     {
         return DB::transaction(function () use ($tipo, $monto, $concepto, $usuario) {

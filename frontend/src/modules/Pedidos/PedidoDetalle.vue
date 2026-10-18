@@ -203,6 +203,13 @@
       <li v-if="pedido.entregado_at">
         Entregado {{ formatearFecha(pedido.entregado_at) }}
       </li>
+      <li v-if="pedido.anulado_at">
+        Anulado {{ formatearFecha(pedido.anulado_at) }}<template v-if="pedido.anulado_por">
+          por {{ pedido.anulado_por.name }}
+        </template> · volvieron el stock y la plata<template v-if="pedido.motivo_anulacion">
+          · “{{ pedido.motivo_anulacion }}”
+        </template>
+      </li>
       <li v-if="pedido.cancelado_at">
         Cancelado {{ formatearFecha(pedido.cancelado_at) }}<template v-if="pedido.confirmado_at">
           · el stock volvió al inventario

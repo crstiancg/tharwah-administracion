@@ -86,6 +86,16 @@ class PedidoController extends Controller
         return response()->json($this->conDetalle($this->pedidos->cancelar($pedido, $request->user())));
     }
 
+    /** Anula una venta ya hecha: vuelven stock y plata. Pide el motivo. */
+    public function anular(Request $request, Pedido $pedido): JsonResponse
+    {
+        $motivo = $request->validate([
+            'motivo' => ['required', 'string', 'max:255'],
+        ], [], ['motivo' => 'motivo'])['motivo'];
+
+        return response()->json($this->conDetalle($this->pedidos->anular($pedido, trim($motivo), $request->user())));
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -95,6 +105,7 @@ class PedidoController extends Controller
             'cliente',
             'sede:id,nombre',
             'usuario:id,name',
+            'anuladoPor:id,name',
             'items' => fn ($q) => $q->orderBy('id'),
             // Stock de la sede del pedido (no el total): es de donde sale al
             // confirmar, y el front avisa antes de cobrar o confirmar.

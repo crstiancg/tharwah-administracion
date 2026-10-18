@@ -6,7 +6,9 @@ export const ESTADOS = {
   pendiente: { label: 'Pendiente', status: 'warning' },
   confirmado: { label: 'Confirmado', status: 'info' },
   entregado: { label: 'Entregado', status: 'positive' },
-  cancelado: { label: 'Cancelado', status: 'negative' }
+  cancelado: { label: 'Cancelado', status: 'negative' },
+  // Venta ya hecha que se deshizo (volvieron stock y plata).
+  anulado: { label: 'Anulado', status: 'negative' }
 }
 
 // Mismas claves que Pedido::CANALES del backend.

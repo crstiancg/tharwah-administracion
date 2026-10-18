@@ -135,6 +135,20 @@
             <span :class="['text-mono', r.monto < 0 ? 'caja-resumen__menos' : 'caja-resumen__mas']">
               {{ r.monto < 0 ? '−' : '+' }}{{ formatearPrecio(Math.abs(r.monto)) }}
             </span>
+            <!-- Ver la venta (para anularla, revisar su comprobante…). -->
+            <q-btn
+              v-if="r.pedidoId && userStore.hasPermission('pedidos.index')"
+              flat
+              dense
+              round
+              size="sm"
+              icon="open_in_new"
+              color="grey-7"
+              :to="{ path: '/pedidos', query: { ver: r.pedidoId } }"
+              :aria-label="`Ver ${r.pedidoCodigo}`"
+            >
+              <q-tooltip>Ver pedido</q-tooltip>
+            </q-btn>
             <!-- Reimprimir el ticket de la venta de ese cobro. -->
             <q-btn
               v-if="r.pedidoId && puedeImprimir"

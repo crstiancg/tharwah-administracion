@@ -85,7 +85,7 @@
           class="text-right text-mono"
         >
           <span
-            v-if="Number(props.row.saldo) > 0 && props.row.estado !== 'cancelado'"
+            v-if="Number(props.row.saldo) > 0 && !['cancelado', 'anulado'].includes(props.row.estado)"
             class="pedido-saldo"
           >{{ formatearPrecio(props.row.saldo) }}</span>
           <span
@@ -191,6 +191,20 @@
             Tiene pagos: devolvelos antes de cancelar
           </q-tooltip>
         </AppButton>
+        <!-- Venta ya hecha: vuelven stock y plata. Con boleta o factura no
+             (va con nota de crédito ante SUNAT). -->
+        <AppButton
+          v-if="puede('anular')"
+          variant="destructive"
+          label="Anular venta"
+          icon="undo"
+          :disable="Boolean(motivoNoAnulable)"
+          @click="abrirAnular"
+        >
+          <q-tooltip v-if="motivoNoAnulable">
+            {{ motivoNoAnulable }}
+          </q-tooltip>
+        </AppButton>
         <AppButton
           v-if="puede('devolver')"
           variant="tertiary"
@@ -246,6 +260,48 @@
     </AppDialog>
 
     <ImpresionTicket ref="impresionRef" />
+
+    <!-- ── Anular venta: pide el motivo ── -->
+    <AppDialog
+      v-model="anularDialog"
+      title="Anular venta"
+      persistent
+    >
+      <p class="confirm-text">
+        Vas a anular <strong>{{ detalle?.codigo }}</strong> por <strong>{{ formatearPrecio(detalle?.total) }}</strong>:
+      </p>
+      <ul class="anular-lista">
+        <li>Los productos vuelven al stock de {{ detalle?.sede?.nombre ?? 'la sede' }} (a sus mismos lotes).</li>
+        <li v-if="Number(detalle?.pagado) > 0">
+          Se devuelven <strong>{{ formatearPrecio(detalle.pagado) }}</strong> desde la caja abierta de hoy, por el mismo medio con que se pagó.
+        </li>
+        <li>No se puede deshacer.</li>
+      </ul>
+      <AppTextField
+        v-model="motivo"
+        label="Motivo"
+        placeholder="El cliente devolvió la mercadería"
+        maxlength="255"
+        :error="errorAnular"
+        autofocus
+      />
+
+      <template #actions>
+        <AppButton
+          variant="tertiary"
+          label="Volver"
+          :disable="accionando === 'anular'"
+          @click="anularDialog = false"
+        />
+        <AppButton
+          variant="destructive"
+          label="Anular venta"
+          :disable="!motivo.trim()"
+          :loading="accionando === 'anular'"
+          @click="anular"
+        />
+      </template>
+    </AppDialog>
 
     <!-- ── Cobrar / devolver ── -->
     <AppDialog
@@ -369,6 +425,7 @@ import AppFilterBar from '@/components/AppFilterBar.vue'
 import AppFilterPill from '@/components/AppFilterPill.vue'
 import AppPageHeader from '@/components/AppPageHeader.vue'
 import AppTable from '@/components/AppTable.vue'
+import AppTextField from '@/components/AppTextField.vue'
 import PagoForm from '@/modules/Caja/PagoForm.vue'
 import ImpresionTicket from '@/modules/Ventas/ImpresionTicket.vue'
 import PedidoService from '@/services/PedidoService'
@@ -517,7 +574,9 @@ const REGLAS = {
   devolver: { estados: ['pendiente', 'confirmado'], permiso: 'pedidos.devoluciones', pagado: true },
   confirmar: { estados: ['pendiente'], permiso: 'pedidos.confirmar' },
   entregar: { estados: ['confirmado'], permiso: 'pedidos.entregar' },
-  cancelar: { estados: ['pendiente', 'confirmado'], permiso: 'pedidos.cancelar' }
+  cancelar: { estados: ['pendiente', 'confirmado'], permiso: 'pedidos.cancelar' },
+  // Venta ya hecha (también las del punto de venta).
+  anular: { estados: ['confirmado', 'entregado'], permiso: 'pedidos.anular' }
 }
 
 function puede (accion) {
@@ -572,6 +631,47 @@ const accionDialog = ref(false)
 const accionPendiente = ref(null)
 const accionando = ref(null)
 
+// ── Anular venta ──
+// Con boleta o factura vigente no se anula acá: va con nota de crédito.
+const motivoNoAnulable = computed(() => {
+  const c = detalle.value?.comprobante
+  if (!c || c.estado === 'rechazado') return null
+  return `Tiene la ${c.numero}: una venta con boleta o factura se anula con nota de crédito ante SUNAT (próximamente).`
+})
+
+const anularDialog = ref(false)
+const motivo = ref('')
+const errorAnular = ref('')
+
+function abrirAnular () {
+  motivo.value = ''
+  errorAnular.value = ''
+  anularDialog.value = true
+}
+
+async function anular () {
+  accionando.value = 'anular'
+  errorAnular.value = ''
+  try {
+    const actualizado = await PedidoService.anular(detalle.value.id, motivo.value.trim())
+    detalleRef.value.actualizar(actualizado)
+    anularDialog.value = false
+    refrescar()
+    $q.notify({ type: 'positive', message: `Venta ${actualizado.codigo} anulada: volvieron el stock y la plata.`, position: 'top-right', timeout: 3500 })
+  } catch (error) {
+    const { status, data } = error.response ?? {}
+    const primero = Object.values(data?.errors ?? {})[0]?.[0] ?? data?.message
+    if (status === 422 && data?.errors?.motivo) {
+      errorAnular.value = data.errors.motivo[0]
+    } else if (status === 422 || status === 409) {
+      anularDialog.value = false
+      $q.notify({ type: 'negative', message: primero, position: 'top-right', timeout: 6000, multiLine: true })
+    }
+  } finally {
+    accionando.value = null
+  }
+}
+
 function pedirConfirmacion (accion) {
   accionPendiente.value = accion
   accionDialog.value = true
@@ -615,6 +715,14 @@ async function ejecutar (accion) {
 </script>
 
 <style lang="scss" scoped>
+.anular-lista {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--app-ink-2);
+}
+
 // Separa los dos grupos de botones del detalle (ver template).
 .pedido-acciones__espacio {
   flex: 1 1 auto;

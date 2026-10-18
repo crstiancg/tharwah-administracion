@@ -56,6 +56,9 @@ class PedidoResource extends JsonResource
             'confirmado_at' => $this->confirmado_at?->toIso8601String(),
             'entregado_at' => $this->entregado_at?->toIso8601String(),
             'cancelado_at' => $this->cancelado_at?->toIso8601String(),
+            'anulado_at' => $this->anulado_at?->toIso8601String(),
+            'anulado_por' => $this->whenLoaded('anuladoPor', fn () => $this->anuladoPor?->only(['id', 'name'])),
+            'motivo_anulacion' => $this->motivo_anulacion,
         ];
     }
 

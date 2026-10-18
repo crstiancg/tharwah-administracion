@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
  */
 class Pedidos
 {
-    public function __construct(private Inventario $inventario) {}
+    public function __construct(private Inventario $inventario, private Cajas $cajas) {}
 
     /**
      * Crea o reemplaza los ítems de un pedido PENDIENTE y recalcula totales.
@@ -185,34 +185,72 @@ class Pedidos
             }
 
             if ($pedido->estado === Pedido::CONFIRMADO) {
-                // La mercadería vuelve a los lotes de los que salió.
-                $ventas = $pedido->movimientos()
-                    ->where('motivo', MovimientoInventario::MOTIVO_VENTA)
-                    ->with('lotes')
-                    ->get()
-                    ->keyBy('variante_id');
-
-                $this->inventario->entrada(
-                    $pedido->sede_id,
-                    $pedido->items()->get()->map(fn ($i) => [
-                        'variante_id' => $i->variante_id,
-                        'cantidad' => $i->cantidad,
-                        // Sin costo conocido, la devolución no toca el promedio.
-                        'costo_unitario' => $i->costo_unitario,
-                        'lotes' => Inventario::lotesDe($ventas[$i->variante_id] ?? null),
-                    ])->all(),
-                    $pedido->codigo,
-                    null,
-                    $usuario,
-                    MovimientoInventario::MOTIVO_DEVOLUCION_VENTA,
-                    ['pedido_id' => $pedido->id],
-                );
+                $this->devolverStock($pedido, $usuario);
             }
 
             $pedido->forceFill(['estado' => Pedido::CANCELADO, 'cancelado_at' => now()])->save();
 
             return $pedido;
         });
+    }
+
+    /**
+     * Deshace una venta ya hecha (confirmada o entregada, también las del
+     * punto de venta): devuelve lo cobrado desde la caja abierta de hoy y la
+     * mercadería a los lotes de los que salió. Con boleta o factura vigente
+     * no: eso se anula ante SUNAT con nota de crédito.
+     */
+    public function anular(Pedido $pedido, string $motivo, User $usuario): Pedido
+    {
+        return DB::transaction(function () use ($pedido, $motivo, $usuario) {
+            $pedido = Pedido::query()->whereKey($pedido->id)->lockForUpdate()->firstOrFail();
+            $this->exigirEstado($pedido, [Pedido::CONFIRMADO, Pedido::ENTREGADO], 'anular');
+
+            if ($comprobante = $pedido->comprobanteVigente()) {
+                throw ValidationException::withMessages([
+                    'estado' => "Tiene la {$comprobante->numero()} ({$comprobante->estado}): una venta con boleta o factura se anula con nota de crédito ante SUNAT.",
+                ])->status(409);
+            }
+
+            // Primero la plata: si no alcanza el efectivo de la caja, no se toca nada.
+            $this->cajas->devolverTodo($pedido, $motivo, $usuario);
+            $this->devolverStock($pedido, $usuario);
+
+            $pedido->forceFill([
+                'estado' => Pedido::ANULADO,
+                'anulado_at' => now(),
+                'anulado_por' => $usuario->id,
+                'motivo_anulacion' => $motivo,
+            ])->save();
+
+            return $pedido;
+        });
+    }
+
+    /** La mercadería vuelve a los lotes de los que salió. */
+    private function devolverStock(Pedido $pedido, ?User $usuario): void
+    {
+        $ventas = $pedido->movimientos()
+            ->where('motivo', MovimientoInventario::MOTIVO_VENTA)
+            ->with('lotes')
+            ->get()
+            ->keyBy('variante_id');
+
+        $this->inventario->entrada(
+            $pedido->sede_id,
+            $pedido->items()->get()->map(fn ($i) => [
+                'variante_id' => $i->variante_id,
+                'cantidad' => $i->cantidad,
+                // Sin costo conocido, la devolución no toca el promedio.
+                'costo_unitario' => $i->costo_unitario,
+                'lotes' => Inventario::lotesDe($ventas[$i->variante_id] ?? null),
+            ])->all(),
+            $pedido->codigo,
+            null,
+            $usuario,
+            MovimientoInventario::MOTIVO_DEVOLUCION_VENTA,
+            ['pedido_id' => $pedido->id],
+        );
     }
 
     /**

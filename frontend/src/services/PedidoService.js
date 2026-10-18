@@ -24,6 +24,11 @@ class PedidoService {
   static async cancelar (id) {
     return (await api.post(`api/pedidos/${id}/cancelar`)).data
   }
+
+  // Deshace una venta hecha: vuelven el stock y la plata (desde la caja de hoy).
+  static async anular (id, motivo) {
+    return (await api.post(`api/pedidos/${id}/anular`, { motivo })).data
+  }
 }
 
 export default PedidoService
