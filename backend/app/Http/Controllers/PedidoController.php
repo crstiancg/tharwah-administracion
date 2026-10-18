@@ -103,7 +103,8 @@ class PedidoController extends Controller
     {
         $pedido->load([
             'cliente',
-            'sede:id,nombre',
+            // Con dirección y teléfono: salen en el ticket que se reimprime.
+            'sede:id,nombre,direccion,telefono',
             'usuario:id,name',
             'anuladoPor:id,name',
             'items' => fn ($q) => $q->orderBy('id'),
