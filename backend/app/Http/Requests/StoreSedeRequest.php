@@ -23,7 +23,7 @@ class StoreSedeRequest extends FormRequest
             return;
         }
 
-        foreach (['nombre', 'direccion', 'telefono'] as $campo) {
+        foreach (['nombre', 'direccion', 'telefono', 'codigo_sunat'] as $campo) {
             if (is_string($sede[$campo] ?? null)) {
                 $sede[$campo] = trim($sede[$campo]) ?: null;
             }
@@ -41,6 +41,8 @@ class StoreSedeRequest extends FormRequest
             'sede.nombre' => ['required', 'string', 'max:60', $this->nombreUnico($this->route('sede'))],
             'sede.direccion' => ['nullable', 'string', 'max:200'],
             'sede.telefono' => ['nullable', 'string', 'max:30'],
+            // Código del establecimiento en la ficha RUC (0000 = domicilio fiscal).
+            'sede.codigo_sunat' => ['required', 'regex:/^\d{4}$/'],
             'sede.activo' => ['required', 'boolean', $this->noDesactivaConStock($this->route('sede'))],
         ];
     }
@@ -81,6 +83,7 @@ class StoreSedeRequest extends FormRequest
             'sede.nombre' => 'nombre',
             'sede.direccion' => 'dirección',
             'sede.telefono' => 'teléfono',
+            'sede.codigo_sunat' => 'código de establecimiento SUNAT',
             'sede.activo' => 'activo',
         ];
     }

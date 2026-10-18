@@ -142,6 +142,10 @@ class Facturacion
 
     private function enviar(Comprobante $comprobante, Pedido $pedido): Comprobante
     {
+        // El establecimiento (ficha RUC) es el de la sede que vendió; el
+        // domicilio del emisor sigue siendo el fiscal de config/greenter.php.
+        config(['greenter.company.address.codLocal' => $pedido->sede()->value('codigo_sunat') ?: '0000']);
+
         try {
             $resultado = Greenter::send('invoice', $this->documento($comprobante, $pedido));
         } catch (\Throwable $e) {

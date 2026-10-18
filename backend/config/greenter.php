@@ -8,9 +8,9 @@ use Greenter\Ws\Services\SunatEndpoints;
 |--------------------------------------------------------------------------
 |
 | Por defecto en BETA: los comprobantes van al ambiente de pruebas de SUNAT
-| con el usuario MODDATOS y un certificado de prueba. Para producción:
-| GREENTER_MODE=prod, los datos reales de la empresa, el usuario SOL
-| secundario y el certificado digital (storage/app/certs/certificate.pem,
+| con el usuario MODDATOS y un certificado de prueba. Los datos de la
+| empresa son los de su ficha RUC. Para producción: GREENTER_MODE=prod,
+| el usuario SOL secundario (FACTURA1) y su clave, y el certificado digital (storage/app/certs/certificate.pem,
 | que está en el volumen persistente y fuera de git).
 |
 */
@@ -19,15 +19,15 @@ return [
     'mode' => env('GREENTER_MODE', 'beta'), // beta | prod
 
     'company' => [
-        'ruc' => env('GREENTER_COMPANY_RUC', '20000000001'),
+        'ruc' => env('GREENTER_COMPANY_RUC', '20616230949'),
         'razonSocial' => env('GREENTER_COMPANY_NAME', 'GRUPO THARWAH S.A.C.'),
         'nombreComercial' => env('GREENTER_COMPANY_COMMERCIAL_NAME', 'THARWAH'),
         'address' => [
-            'ubigeo' => env('GREENTER_COMPANY_UBIGEO', '150101'),
-            'departamento' => env('GREENTER_COMPANY_DEPARTMENT', 'LIMA'),
-            'provincia' => env('GREENTER_COMPANY_PROVINCE', 'LIMA'),
-            'distrito' => env('GREENTER_COMPANY_DISTRICT', 'LIMA'),
-            'direccion' => env('GREENTER_COMPANY_ADDRESS', 'DIRECCION FISCAL POR CONFIGURAR'),
+            'ubigeo' => env('GREENTER_COMPANY_UBIGEO', '211101'),
+            'departamento' => env('GREENTER_COMPANY_DEPARTMENT', 'PUNO'),
+            'provincia' => env('GREENTER_COMPANY_PROVINCE', 'SAN ROMAN'),
+            'distrito' => env('GREENTER_COMPANY_DISTRICT', 'JULIACA'),
+            'direccion' => env('GREENTER_COMPANY_ADDRESS', 'PJ. PASAJE CONFRATERNIDAD URB. CONCORDIA MZA. D LOTE. 4 A 2 CUADRAS DEL ESTADIO NUEVO'),
             // Código del establecimiento anexo en SUNAT (0000 = domicilio fiscal).
             'codLocal' => env('GREENTER_COMPANY_COD_LOCAL', '0000'),
         ],

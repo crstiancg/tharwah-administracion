@@ -151,6 +151,7 @@ const columns = [
   { name: 'nombre', label: 'Nombre', field: 'nombre', align: 'left', sortable: true },
   { name: 'direccion', label: 'Dirección', field: 'direccion', align: 'left', format: (v) => v ?? '—' },
   { name: 'telefono', label: 'Teléfono', field: 'telefono', align: 'left', format: (v) => v ?? '—' },
+  { name: 'codigo_sunat', label: 'Cód. SUNAT', field: 'codigo_sunat', align: 'left', classes: 'text-mono' },
   { name: 'usuarios_count', label: 'Usuarios', field: 'usuarios_count', align: 'right', classes: 'text-mono' },
   { name: 'activo', label: 'Estado', field: 'activo', align: 'left', sortable: true },
   { name: 'acciones', label: '', field: 'id', align: 'right' }

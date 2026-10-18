@@ -36,6 +36,17 @@
       @change="form.validate(`${PATH}.telefono`)"
     />
 
+    <AppTextField
+      v-model="form.sede.codigo_sunat"
+      label="Código de establecimiento SUNAT"
+      icon="badge"
+      placeholder="0000"
+      maxlength="4"
+      inputmode="numeric"
+      :error="form.errors[`${PATH}.codigo_sunat`]"
+      @change="form.validate(`${PATH}.codigo_sunat`)"
+    />
+
     <q-toggle
       v-model="form.sede.activo"
       label="Activa (vende y recibe traslados)"
@@ -52,6 +63,8 @@
 
     <p class="sede-form__hint">
       La dirección y el teléfono salen en el ticket de las ventas de esta sede.
+      El código de establecimiento es el de la ficha RUC: 0000 si es el
+      domicilio fiscal, o el del anexo (0001…) si es una sucursal.
     </p>
 
     <button
@@ -80,7 +93,7 @@ const props = defineProps({
 const emit = defineEmits(['save'])
 
 // Función y no objeto: useForm guarda estos datos como "originales" para el reset().
-const inicial = () => ({ sede: { nombre: '', direccion: '', telefono: '', activo: true } })
+const inicial = () => ({ sede: { nombre: '', direccion: '', telefono: '', codigo_sunat: '0000', activo: true } })
 
 const form = props.id
   ? useForm('put', `api/sedes/${props.id}`, inicial)
@@ -89,8 +102,8 @@ const form = props.id
 onMounted(async () => {
   if (!props.id) return
 
-  const { nombre, direccion, telefono, activo } = await SedeService.get(props.id)
-  form.setData({ [PATH]: { nombre, direccion: direccion ?? '', telefono: telefono ?? '', activo } })
+  const { nombre, direccion, telefono, codigo_sunat: codigoSunat, activo } = await SedeService.get(props.id)
+  form.setData({ [PATH]: { nombre, direccion: direccion ?? '', telefono: telefono ?? '', codigo_sunat: codigoSunat ?? '0000', activo } })
 })
 
 async function submit () {
