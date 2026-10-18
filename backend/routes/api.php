@@ -26,10 +26,17 @@ use App\Http\Controllers\UnidadController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VentaController;
 use App\Http\Middleware\AutorizarPorRuta;
+use App\Models\User;
 use Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 use Illuminate\Support\Facades\Route;
 
 // El login es POST /oauth/token (password grant), lo registra Passport.
+
+// {usuario}: el usuario reservado (config permisos.usuario_oculto) sólo
+// existe para él mismo; para cualquier otro, 404 (ver, editar, borrar…).
+Route::bind('usuario', fn (string $valor) => User::query()
+    ->visiblesPara(request()->user())
+    ->findOrFail($valor));
 
 // Autorización por nombre de ruta (config/permisos.php): el nombre de cada
 // ruta ES el permiso que exige, y lo que no está permitido se rechaza. Toda

@@ -17,7 +17,7 @@ class UserController extends Controller
     {
         return $this->generateViewSetList(
             $request,
-            User::query()->with(['roles:id,name', 'sede:id,nombre']),
+            User::query()->visiblesPara($request->user())->with(['roles:id,name', 'sede:id,nombre']),
             [],
             ['name', 'username', 'email'],
             ['id', 'name', 'username', 'email', 'active'],

@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -45,6 +46,30 @@ class User extends Authenticatable implements OAuthenticatable
     public function sede(): BelongsTo
     {
         return $this->belongsTo(Sede::class);
+    }
+
+    /** El usuario reservado (config permisos.usuario_oculto). */
+    public function esOculto(): bool
+    {
+        $oculto = config('permisos.usuario_oculto');
+
+        return $oculto !== null && $oculto !== '' && $this->getKey() === (int) $oculto;
+    }
+
+    /**
+     * Los usuarios que `$quien` puede ver en la administración: todos menos
+     * el reservado, salvo que sea él mismo.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeVisiblesPara(Builder $query, ?User $quien): void
+    {
+        $oculto = config('permisos.usuario_oculto');
+        if ($oculto === null || $oculto === '' || $quien?->getKey() === (int) $oculto) {
+            return;
+        }
+
+        $query->whereKeyNot((int) $oculto);
     }
 
     /**

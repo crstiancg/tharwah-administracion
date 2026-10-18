@@ -14,6 +14,11 @@
 
 return [
 
+    // Usuario reservado (el del dueño del sistema): sólo él se ve a sí mismo
+    // en Usuarios. Para cualquier otro no aparece en la lista ni existe al
+    // abrirlo, editarlo o borrarlo (404). null = ninguno oculto.
+    'usuario_oculto' => env('USUARIO_OCULTO_ID', 1),
+
     // Rutas que sólo exigen sesión (están en el grupo pero no piden permiso).
     'libres' => [
         'auth.user',
