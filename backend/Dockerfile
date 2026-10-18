@@ -12,11 +12,12 @@ RUN composer dump-autoload --optimize --no-dev --classmap-authoritative --no-scr
 
 FROM dunglas/frankenphp:1-php8.4-bookworm
 
-# gd con WebP y AVIF (fotos de productos y sus miniaturas), MySQL, etc.
-RUN install-php-extensions gd pdo_mysql intl zip bcmath exif opcache pcntl \
-    # Si GD quedó sin AVIF, las fotos AVIF se quedarían sin miniatura: que
-    # falle el build y no producción.
-    && php -r 'exit(function_exists("imageavif") && function_exists("imagewebp") ? 0 : 1);'
+# gd con WebP y AVIF (fotos de productos y sus miniaturas), MySQL, soap
+# (Greenter envía los comprobantes a SUNAT por SOAP), etc.
+RUN install-php-extensions gd pdo_mysql intl zip bcmath exif opcache pcntl soap \
+    # Si GD quedó sin AVIF, las fotos AVIF se quedarían sin miniatura; sin
+    # SoapClient no sale ningún comprobante: que falle el build y no producción.
+    && php -r 'exit(function_exists("imageavif") && function_exists("imagewebp") && class_exists("SoapClient") ? 0 : 1);'
 
 COPY docker/php.ini /usr/local/etc/php/conf.d/zz-tharwah.ini
 COPY docker/Caddyfile /etc/caddy/Caddyfile
