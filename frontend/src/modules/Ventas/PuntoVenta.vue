@@ -1,5 +1,8 @@
 <template>
-  <div :class="['pos', { 'pos--sinFiltros': !filtrosVisibles }]">
+  <div
+    :class="['pos', { 'pos--sinFiltros': !filtrosVisibles }]"
+    :style="{ '--pos-carrito': `${anchoCarrito}px` }"
+  >
     <!-- Fondo para cerrar los paneles deslizables en pantallas chicas. -->
     <div
       v-if="esMovil && (filtrosAbiertos || carritoAbierto)"
@@ -152,10 +155,41 @@
 
     <!-- ── Carrito ── -->
     <div :class="['pos__carrito', { 'pos__carrito--abierto': carritoAbierto }]">
+      <!-- Accesibilidad: arrastrar para agrandar el carrito (y todo lo que
+           tiene adentro, letra incluida). Doble clic vuelve al normal. -->
+      <div
+        v-if="!esMovil"
+        class="pos__manija"
+        role="separator"
+        aria-orientation="vertical"
+        :aria-valuenow="anchoCarrito"
+        :aria-valuemin="ANCHO_CARRITO"
+        :aria-valuemax="anchoMaximo()"
+        aria-label="Ancho del carrito (flechas para ajustar, doble clic para restablecer)"
+        tabindex="0"
+        @pointerdown="arrastrarManija"
+        @dblclick="fijarAncho(ANCHO_CARRITO)"
+        @keydown.left.prevent="fijarAncho(anchoCarrito + 30)"
+        @keydown.right.prevent="fijarAncho(anchoCarrito - 30)"
+      >
+        <q-tooltip
+          anchor="center left"
+          self="center right"
+        >
+          Arrastrá para agrandar · doble clic: tamaño normal
+        </q-tooltip>
+        <span class="pos__manijaAgarre">
+          <q-icon
+            name="drag_indicator"
+            size="16px"
+          />
+        </span>
+      </div>
       <CarritoPanel
         ref="carritoRef"
         :flash-id="flashId"
         :flash-tick="flashTick"
+        :escala="esMovil ? 1 : escalaCarrito"
         :cerrable="esMovil"
         @vendido="vendido"
         @cerrar="carritoAbierto = false"
@@ -388,6 +422,61 @@ function nuevaVenta () {
   buscarRef.value?.blur()
 }
 
+// ── Ancho del carrito (accesibilidad) ──
+// Más ancho = todo más grande, en proporción (letra, botones, fotos). Se
+// recuerda en esta computadora: cada caja deja el tamaño que le sirve.
+const ANCHO_CARRITO = 380
+const CLAVE_ANCHO = 'pos.carrito.ancho'
+
+function anchoMaximo () {
+  return Math.max(ANCHO_CARRITO, Math.round(window.innerWidth * 0.55))
+}
+
+function leerAncho () {
+  try {
+    const guardado = Number(localStorage.getItem(CLAVE_ANCHO))
+    return guardado >= ANCHO_CARRITO ? guardado : ANCHO_CARRITO
+  } catch {
+    return ANCHO_CARRITO
+  }
+}
+
+const anchoCarrito = ref(leerAncho())
+const escalaCarrito = computed(() => anchoCarrito.value / ANCHO_CARRITO)
+
+function fijarAncho (ancho, guardar = true) {
+  anchoCarrito.value = Math.round(Math.min(anchoMaximo(), Math.max(ANCHO_CARRITO, ancho)))
+  if (!guardar) return
+  try {
+    localStorage.setItem(CLAVE_ANCHO, String(anchoCarrito.value))
+  } catch {
+    // Sin storage: el tamaño vale hasta recargar.
+  }
+}
+
+function arrastrarManija (evento) {
+  evento.preventDefault()
+  const mover = (e) => fijarAncho(window.innerWidth - e.clientX, false)
+  const soltar = () => {
+    window.removeEventListener('pointermove', mover)
+    document.body.classList.remove('pos--arrastrando')
+    fijarAncho(anchoCarrito.value)
+  }
+  document.body.classList.add('pos--arrastrando')
+  window.addEventListener('pointermove', mover)
+  window.addEventListener('pointerup', soltar, { once: true })
+}
+
+// Achicar la ventana no deja el carrito más ancho que el máximo.
+function ajustarAlVentana () {
+  if (anchoCarrito.value > anchoMaximo()) fijarAncho(anchoMaximo(), false)
+}
+onMounted(() => {
+  ajustarAlVentana()
+  window.addEventListener('resize', ajustarAlVentana)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', ajustarAlVentana))
+
 // ── Atajos de teclado ──
 function enCampo (el) {
   return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement
@@ -405,7 +494,12 @@ function atajos (evento) {
   // Resumen de la venta abierto: Enter o F9 confirman el cobro (Esc lo
   // cierra el diálogo). Nada más: ni + / − ni Supr sobre las líneas.
   if (carritoRef.value?.resumenAbierto) {
-    if (evento.key === 'Enter' || evento.key === 'F9') {
+    // Enter escribiendo texto (buscar cliente, n° de operación) no cobra:
+    // elige el cliente o termina el campo. En montos (paga con) sí.
+    const el = document.activeElement
+    const escribiendoTexto = el instanceof HTMLTextAreaElement ||
+      (el instanceof HTMLInputElement && el.type !== 'number')
+    if (evento.key === 'F9' || (evento.key === 'Enter' && !escribiendoTexto)) {
       evento.preventDefault()
       carritoRef.value.cobrar()
     }
@@ -465,17 +559,56 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
+// Manija para agrandar el carrito: una pestaña con el ícono de arrastrar,
+// montada sobre el borde izquierdo del carrito (toda la franja arrastra).
+.pos__manija {
+  position: absolute;
+  inset: 0 auto 0 -6px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+
+  &:focus-visible {
+    outline: none;
+  }
+}
+
+.pos__manijaAgarre {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 56px;
+  border: 1px solid var(--app-border-control);
+  border-radius: 9px;
+  background: var(--app-surface);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  color: var(--app-ink-2);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+  .pos__manija:hover &,
+  .pos__manija:focus-visible & {
+    border-color: $primary;
+    background: $primary;
+    color: #FFFFFF;
+  }
+}
+
 // Ocupa todo el alto disponible bajo la barra de la app: el carrito no se
 // desplaza con la página, sólo su lista de líneas.
 .pos {
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr) 380px;
+  grid-template-columns: 230px minmax(0, 1fr) var(--pos-carrito, 380px);
   height: calc(100vh - var(--app-header-height, 65px));
   min-height: 560px;
   background: var(--app-bg, transparent);
 
   &--sinFiltros {
-    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-columns: minmax(0, 1fr) var(--pos-carrito, 380px);
   }
 
   @media (max-width: 1023px) {
@@ -699,6 +832,7 @@ onBeforeUnmount(() => {
 }
 
 .pos__carrito {
+  position: relative;
   min-height: 0;
 
   @media (max-width: 1023px) {

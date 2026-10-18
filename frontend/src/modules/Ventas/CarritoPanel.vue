@@ -1,5 +1,9 @@
 <template>
-  <aside class="carrito">
+  <!-- `zoom`: con el carrito más ancho, todo crece en proporción. -->
+  <aside
+    class="carrito"
+    :style="escala !== 1 ? { zoom: escala } : null"
+  >
     <!-- ── Cabecera + ventas en espera ── -->
     <header class="carrito__cabecera">
       <!-- En una fila: el alto queda para la lista de productos. -->
@@ -240,6 +244,72 @@
 
     <!-- ── Cobro ── -->
     <footer class="carrito__pie">
+      <!-- Sólo el total y cobrar: cliente, pago y comprobante van en el
+           diálogo de cobro, así la lista de productos usa todo el alto. -->
+      <div class="carrito__total">
+        <span>Total</span>
+        <span class="text-mono">{{ formatearPrecio(pos.total) }}</span>
+      </div>
+
+      <!-- Estado de la caja: es diaria, se abre y se cierra desde acá. -->
+      <div
+        v-if="estadoCaja"
+        :class="['carrito__caja', `carrito__caja--${estadoCaja.tono}`]"
+        :role="estadoCaja.tono === 'ok' ? 'status' : 'alert'"
+      >
+        <q-icon
+          :name="estadoCaja.icono"
+          size="16px"
+        />
+        <span>{{ estadoCaja.texto }}</span>
+        <button
+          v-if="!caja && userStore.hasPermission('cajas.abrir')"
+          type="button"
+          @click="abrirCajaDialog = true"
+        >
+          Abrir caja
+        </button>
+        <button
+          v-else-if="caja && userStore.hasPermission('cajas.cerrar')"
+          type="button"
+          :disabled="preparandoCierre"
+          @click="pedirCierre"
+        >
+          Cerrar caja
+        </button>
+      </div>
+
+      <button
+        type="button"
+        class="carrito__cobrar"
+        :disabled="!puedeAbrirCobro"
+        @click="cobrar"
+      >
+        <q-spinner
+          v-if="procesando"
+          size="18px"
+        />
+        <template v-else>
+          Cobrar · {{ formatearPrecio(pos.total) }}
+          <kbd>F9</kbd>
+        </template>
+      </button>
+    </footer>
+
+    <!-- ── Antes de cobrar: toda la venta, grande ── -->
+    <AppDialog
+      v-model="resumenDialog"
+      title="Cobrar venta"
+      size="lg"
+    >
+      <div
+        v-if="resumenDialog"
+        class="cobro"
+      >
+        <div class="cobro__venta">
+          <ResumenVenta />
+        </div>
+        <div class="cobro__pago">
       <div class="carrito__cliente">
         <span
           :id="`${uid}-cliente`"
@@ -407,34 +477,6 @@
         {{ errores['venta.pagos'][0] }}
       </p>
 
-      <!-- Estado de la caja: es diaria, se abre y se cierra desde acá. -->
-      <div
-        v-if="estadoCaja"
-        :class="['carrito__caja', `carrito__caja--${estadoCaja.tono}`]"
-        :role="estadoCaja.tono === 'ok' ? 'status' : 'alert'"
-      >
-        <q-icon
-          :name="estadoCaja.icono"
-          size="16px"
-        />
-        <span>{{ estadoCaja.texto }}</span>
-        <button
-          v-if="!caja && userStore.hasPermission('cajas.abrir')"
-          type="button"
-          @click="abrirCajaDialog = true"
-        >
-          Abrir caja
-        </button>
-        <button
-          v-else-if="caja && userStore.hasPermission('cajas.cerrar')"
-          type="button"
-          :disabled="preparandoCierre"
-          @click="pedirCierre"
-        >
-          Cerrar caja
-        </button>
-      </div>
-
       <!-- Comprobante: ticket interno, o boleta / factura electrónica (SUNAT). -->
       <div class="carrito__comprobante">
         <q-btn-toggle
@@ -461,30 +503,8 @@
         </p>
       </div>
 
-      <button
-        type="button"
-        class="carrito__cobrar"
-        :disabled="!puedeCobrar"
-        @click="cobrar"
-      >
-        <q-spinner
-          v-if="procesando"
-          size="18px"
-        />
-        <template v-else>
-          Cobrar · {{ formatearPrecio(pos.total) }}
-          <kbd>F9</kbd>
-        </template>
-      </button>
-    </footer>
-
-    <!-- ── Antes de cobrar: toda la venta, grande ── -->
-    <AppDialog
-      v-model="resumenDialog"
-      title="Resumen de la venta"
-      size="lg"
-    >
-      <ResumenVenta v-if="resumenDialog" />
+        </div>
+      </div>
       <template #actions>
         <AppButton
           variant="tertiary"
@@ -496,6 +516,7 @@
           variant="primary"
           :label="`Confirmar cobro · ${formatearPrecio(pos.total)}`"
           icon="point_of_sale"
+          :disable="!puedeCobrar"
           :loading="procesando"
           @click="confirmarCobro"
         />
@@ -541,7 +562,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
@@ -579,6 +600,11 @@ defineProps({
   cerrable: {
     type: Boolean,
     default: false
+  },
+  // 1 = normal; el punto de venta lo sube al agrandar el carrito.
+  escala: {
+    type: Number,
+    default: 1
   }
 })
 
@@ -778,26 +804,31 @@ const motivoComprobante = computed(() => motivoNoPermitido(pos.comprobante, pos.
 const puedeCobrar = computed(() =>
   !motivoComprobante.value && Boolean(caja.value) && !caja.value.vencida && pos.items.length > 0 && pos.total > 0 && Math.abs(pos.restante) < 0.005 && !procesando.value)
 
-// Cobrar (botón o F9) primero muestra el resumen; confirmar ahí (Enter o
-// F9 otra vez) registra la venta y descuenta el stock.
+// Cobrar (botón o F9) abre el diálogo de cobro: ahí se elige cliente, pago
+// y comprobante. Confirmar (Enter o F9 otra vez) registra la venta y
+// descuenta el stock.
 const resumenDialog = ref(false)
+
+// Para abrir el cobro alcanza con caja y productos; lo demás se completa ahí.
+const puedeAbrirCobro = computed(() =>
+  Boolean(caja.value) && !caja.value.vencida && pos.items.length > 0 && pos.total > 0 && !procesando.value)
 
 function cobrar () {
   if (resumenDialog.value) {
     confirmarCobro()
     return
   }
-  if (!puedeCobrar.value) {
+  if (!puedeAbrirCobro.value) {
     if (pos.items.length) beepError()
     return
   }
+  errores.value = {}
   resumenDialog.value = true
 }
 
 async function confirmarCobro () {
   if (procesando.value) return
   if (!puedeCobrar.value) {
-    resumenDialog.value = false
     beepError()
     return
   }
@@ -822,9 +853,12 @@ async function confirmarCobro () {
     emit('vendido', pedido)
   } catch (error) {
     beepError()
-    // Vuelve al carrito: el error se marca en la línea o el campo.
-    resumenDialog.value = false
     const { status, data } = error.response ?? {}
+    // Un problema de un producto (stock, precio) se marca en su línea del
+    // carrito: se vuelve ahí. El resto (pago, cliente) se ve en el diálogo.
+    if (Object.keys(data?.errors ?? {}).some((k) => k.startsWith('venta.items'))) {
+      resumenDialog.value = false
+    }
     if (status === 422) {
       errores.value = data.errors ?? {}
       $q.notify({ type: 'negative', message: Object.values(errores.value)[0]?.[0] ?? data.message, position: 'top', timeout: 3500 })
@@ -837,7 +871,13 @@ async function confirmarCobro () {
   }
 }
 
-function enfocarCliente () {
+// F4: el cliente está en el diálogo de cobro; se abre si hace falta.
+async function enfocarCliente () {
+  if (!resumenDialog.value) {
+    if (!puedeAbrirCobro.value) return
+    resumenDialog.value = true
+    await nextTick()
+  }
   clienteRef.value?.$el?.querySelector('input')?.focus()
 }
 
@@ -845,6 +885,24 @@ defineExpose({ cobrar, enfocarCliente, resumenAbierto: resumenDialog })
 </script>
 
 <style lang="scss" scoped>
+// Diálogo de cobro: productos a la izquierda, cobro a la derecha.
+.cobro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr);
+  align-items: start;
+  gap: 20px;
+
+  @media (max-width: 799px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cobro__pago {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .carrito {
   display: flex;
   flex-direction: column;

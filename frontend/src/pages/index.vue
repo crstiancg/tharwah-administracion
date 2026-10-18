@@ -18,6 +18,18 @@
         <q-space />
 
         <AppSedeSelector />
+        <!-- Versión que está corriendo (al lado de la sede): para saber si ya
+             llegó el último deploy. En celular sólo en el menú lateral. -->
+        <span class="app-header__version gt-sm">
+          v{{ versionApp.numero }}
+          <q-tooltip>
+            Tharwah v{{ versionApp.numero }}<template v-if="versionApp.fecha">
+              · compilado {{ versionApp.fecha }}
+            </template><template v-if="versionApp.commit">
+              · {{ versionApp.commit }}
+            </template>
+          </q-tooltip>
+        </span>
         <SwitchDarkMode />
 
         <AppAlertas />
@@ -139,6 +151,17 @@
             @click="onLogout"
           />
         </div>
+        <!-- Qué versión está corriendo: para saber si ya llegó el último deploy. -->
+        <div
+          class="app-drawer__version"
+          :title="`Compilado el ${versionApp.fecha}`"
+        >
+          Tharwah v{{ versionApp.numero }}<template v-if="versionApp.fecha">
+            · {{ versionApp.fecha }}
+          </template><template v-if="versionApp.commit">
+            · {{ versionApp.commit }}
+          </template>
+        </div>
       </div>
     </q-drawer>
 
@@ -163,6 +186,17 @@ import AppBusquedaGlobal from '@/components/AppBusquedaGlobal.vue'
 import SwitchDarkMode from '@/components/SwitchDarkMode.vue'
 import InventarioService from '@/services/InventarioService'
 import PedidoService from '@/services/PedidoService'
+
+// Los pone quasar.config.js al compilar (versión, fecha y commit). Con
+// `typeof`: si el servidor de desarrollo arrancó antes de existir, no rompe.
+/* global __APP_VERSION__, __APP_BUILD__, __APP_COMMIT__ */
+const versionApp = {
+  numero: typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—',
+  fecha: typeof __APP_BUILD__ !== 'undefined'
+    ? new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(__APP_BUILD__))
+    : '',
+  commit: typeof __APP_COMMIT__ !== 'undefined' ? __APP_COMMIT__ : ''
+}
 
 const $q = useQuasar()
 const route = useRoute()
@@ -487,6 +521,24 @@ function toggleDrawer () {
   padding: 12px;
   border-radius: 10px;
   border: 1px solid var(--app-border-subtle);
+}
+
+.app-header__version {
+  padding: 2px 8px;
+  border: 1px solid var(--app-border-subtle);
+  border-radius: 999px;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--app-ink-2);
+  cursor: default;
+  white-space: nowrap;
+}
+
+.app-drawer__version {
+  margin-top: 6px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--app-ink-2);
 }
 
 .app-drawer__userText {

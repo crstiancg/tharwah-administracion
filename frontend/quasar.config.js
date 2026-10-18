@@ -1,8 +1,21 @@
 // Configuration for your app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
+import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { defineConfig } from '#q-app'
 import { loadEnv } from 'vite'
+
+// Versión que se muestra al pie del menú: la de package.json, cuándo se
+// compiló y el commit (si hay git: en el build de Docker no hay, va vacío).
+const VERSION = JSON.parse(readFileSync(new URL('./package.json', import.meta.url))).version
+function commitActual () {
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+  } catch {
+    return ''
+  }
+}
 
 // Origen de la API ("https://api.ejemplo.com") para la CSP de producción
 // (index.html): las fotos y las llamadas a la API salen de ahí. Vacío si la
@@ -81,7 +94,11 @@ export default defineConfig((/* ctx */) => {
       // vueRouterBase,
 
       // publicPath: '/',
-      // define: {},
+      define: {
+        __APP_VERSION__: JSON.stringify(VERSION),
+        __APP_BUILD__: JSON.stringify(new Date().toISOString()),
+        __APP_COMMIT__: JSON.stringify(commitActual())
+      },
       // defineEnv: {}
       // ignorePublicFolder: true,
       // minify: false,

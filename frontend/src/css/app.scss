@@ -219,3 +219,9 @@ body.body--dark {
 *::-webkit-scrollbar {
   display: none;
 }
+
+// Punto de venta: mientras se arrastra el ancho del carrito.
+body.pos--arrastrando {
+  cursor: col-resize;
+  user-select: none;
+}
