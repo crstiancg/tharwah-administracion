@@ -7,7 +7,6 @@ use App\Models\Comprobante;
 use App\Models\ComprobanteSerie;
 use App\Models\Pedido;
 use App\Models\User;
-use App\Support\Fechas;
 use App\Support\NumeroALetras;
 use CodersFree\LaravelGreenter\DTOs\SendResultDTO;
 use CodersFree\LaravelGreenter\Facades\Greenter;
@@ -287,7 +286,9 @@ class Facturacion
             'tipoDoc' => $comprobante->tipo,
             'serie' => $comprobante->serie,
             'correlativo' => (string) $comprobante->correlativo,
-            'fechaEmision' => $comprobante->fecha_emision->copy()->setTimezone(Fechas::zona())->format('Y-m-d H:i:s'),
+            // Con su zona: Greenter la pasa a hora de Perú al escribir el XML.
+            // Sin zona la tomaba como UTC y restaba 5 horas de más.
+            'fechaEmision' => $comprobante->fecha_emision->toIso8601String(),
             'formaPago' => ['tipo' => 'Contado'],
             'tipoMoneda' => 'PEN',
             'client' => [
