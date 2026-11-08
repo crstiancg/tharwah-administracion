@@ -2,23 +2,29 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CajaController;
+use App\Http\Controllers\CatalogoPublicoController;
 use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\ColorController;
 use App\Http\Controllers\CompraController;
 use App\Http\Controllers\ComprobanteController;
+use App\Http\Controllers\ContenidoPublicoController;
+use App\Http\Controllers\ContenidoWebController;
 use App\Http\Controllers\CotizacionController;
 use App\Http\Controllers\EtiquetaController;
 use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\MarcaController;
 use App\Http\Controllers\OfertaController;
+use App\Http\Controllers\OrdenCompraController;
 use App\Http\Controllers\PagoController;
 use App\Http\Controllers\PanelController;
-use App\Http\Controllers\OrdenCompraController;
 use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\PermisoController;
 use App\Http\Controllers\ProductoController;
+use App\Http\Controllers\ProductoWebController;
 use App\Http\Controllers\ProveedorController;
+use App\Http\Controllers\ReclamacionController;
+use App\Http\Controllers\ReclamacionPublicaController;
 use App\Http\Controllers\ReporteController;
 use App\Http\Controllers\RolController;
 use App\Http\Controllers\SedeController;
@@ -26,6 +32,8 @@ use App\Http\Controllers\UnidadController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VentaController;
 use App\Http\Middleware\AutorizarPorRuta;
+use App\Http\Middleware\ClaveTiendaWeb;
+use App\Models\ContenidoWeb;
 use App\Models\User;
 use Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 use Illuminate\Support\Facades\Route;
@@ -37,6 +45,18 @@ use Illuminate\Support\Facades\Route;
 Route::bind('usuario', fn (string $valor) => User::query()
     ->visiblesPara(request()->user())
     ->findOrFail($valor));
+
+// Tienda web: catálogo y contenido de sólo lectura sin sesión (fuera de
+// autorizar.ruta, así que no generan permiso). Los protege su clave
+// (services.tienda_web), que revisa ClaveTiendaWeb. Sin `throttle`: las pide
+// sólo el servidor de la web (al compilar, con varios procesos a la vez) y el
+// contador del límite, en la caché de base de datos, se trababa (deadlocks).
+Route::middleware([ClaveTiendaWeb::ALIAS])->group(function () {
+    Route::get('publico/catalogo', [CatalogoPublicoController::class, 'index'])->name('publico.catalogo');
+    Route::get('publico/contenido', [ContenidoPublicoController::class, 'index'])->name('publico.contenido');
+    // Libro de Reclamaciones: la hoja que llena el cliente en la web.
+    Route::post('publico/reclamaciones', [ReclamacionPublicaController::class, 'store'])->name('publico.reclamaciones');
+});
 
 // Autorización por nombre de ruta (config/permisos.php): el nombre de cada
 // ruta ES el permiso que exige, y lo que no está permitido se rechaza. Toda
@@ -72,6 +92,36 @@ Route::middleware(['auth:api', AutorizarPorRuta::ALIAS])->group(function () {
         Route::get('productos/exportar', [ProductoController::class, 'exportar'])->name('productos.exportar');
         Route::apiResource('productos', ProductoController::class);
         Route::apiResource('ofertas', OfertaController::class);
+
+        // Tienda web: cada sección y el contenido web de cada producto tienen
+        // borrador y publicado. Guardar y publicar son permisos distintos
+        // (unos redactan, otros aprueban); la web sólo lee lo publicado.
+        Route::get('contenido-web', [ContenidoWebController::class, 'index'])->name('contenido-web.index');
+        Route::prefix('contenido-web/{clave}')
+            ->whereIn('clave', ContenidoWeb::CLAVES)
+            ->controller(ContenidoWebController::class)
+            ->group(function () {
+                Route::get('/', 'show')->name('contenido-web.show');
+                Route::put('/', 'update')->name('contenido-web.update');
+                Route::post('archivos', 'subirArchivo')->name('contenido-web.archivos');
+                Route::post('publicar', 'publicar')->name('contenido-web.publicar');
+                Route::delete('borrador', 'descartar')->name('contenido-web.descartar');
+            });
+        Route::get('productos-web', [ProductoWebController::class, 'index'])->name('productos-web.index');
+        Route::prefix('productos/{producto}/web')
+            ->controller(ProductoWebController::class)
+            ->group(function () {
+                Route::get('/', 'show')->name('productos-web.show');
+                Route::put('/', 'update')->name('productos-web.update');
+                Route::post('archivos', 'subirArchivo')->name('productos-web.archivos');
+                Route::post('publicar', 'publicar')->name('productos-web.publicar');
+                Route::delete('borrador', 'descartar')->name('productos-web.descartar');
+            });
+
+        // Libro de Reclamaciones: se consultan y se responden (no se editan ni se borran).
+        Route::get('reclamaciones', [ReclamacionController::class, 'index'])->name('reclamaciones.index');
+        Route::get('reclamaciones/{reclamacion}', [ReclamacionController::class, 'show'])->name('reclamaciones.show');
+        Route::post('reclamaciones/{reclamacion}/respuesta', [ReclamacionController::class, 'responder'])->name('reclamaciones.responder');
 
         // Inventario: el libro sólo se consulta y se le agregan movimientos
         // (no hay update ni destroy: un error se corrige con otro movimiento).

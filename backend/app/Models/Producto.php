@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 
@@ -57,5 +58,13 @@ class Producto extends Model
     public function portada(): MorphOne
     {
         return $this->morphOne(Archivo::class, 'archivable')->ofMany('orden', 'min');
+    }
+
+    /**
+     * Cómo se presenta en la tienda web (null hasta que alguien lo edite).
+     */
+    public function web(): HasOne
+    {
+        return $this->hasOne(ProductoWeb::class);
     }
 }

@@ -133,6 +133,24 @@
               </nav>
             </q-slide-transition>
           </section>
+
+          <nav class="app-drawer__nav">
+            <AppNavItem
+              v-if="userStore.hasPermission('reclamaciones.index')"
+              to="/reclamaciones"
+              icon="menu_book"
+              label="Libro de reclamaciones"
+            >
+              <template
+                v-if="badges.reclamaciones"
+                #badge
+              >
+                <AppBadge variant="brand">
+                  {{ badges.reclamaciones }}
+                </AppBadge>
+              </template>
+            </AppNavItem>
+          </nav>
         </div>
 
         <div class="app-drawer__user">
@@ -186,6 +204,7 @@ import AppBusquedaGlobal from '@/components/AppBusquedaGlobal.vue'
 import SwitchDarkMode from '@/components/SwitchDarkMode.vue'
 import InventarioService from '@/services/InventarioService'
 import PedidoService from '@/services/PedidoService'
+import ReclamacionService from '@/services/ReclamacionService'
 
 // Los pone quasar.config.js al compilar (versión, fecha y commit). Con
 // `typeof`: si el servidor de desarrollo arrancó antes de existir, no rompe.
@@ -230,6 +249,19 @@ async function contarAlertasLotes () {
   }
 }
 watch(() => route.path, contarAlertasLotes, { immediate: true })
+
+// Hojas del Libro de Reclamaciones por responder (plazo legal de 15 días hábiles).
+const reclamacionesPendientes = ref(0)
+async function contarReclamaciones () {
+  if (!userStore.hasPermission('reclamaciones.index')) return
+  try {
+    const { total } = await ReclamacionService.getData({ params: { estado: 'pendiente', rowsPerPage: 1 } })
+    reclamacionesPendientes.value = total ?? 0
+  } catch {
+    // Un badge no vale un error en pantalla.
+  }
+}
+watch(() => route.path, contarReclamaciones, { immediate: true })
 
 // ── Menú ──
 // `badge`: la clave en `badges` (contadores que se recalculan al navegar).
@@ -297,7 +329,11 @@ const secciones = computed(() => MENU
   .map((seccion) => ({ ...seccion, items: seccion.items.filter((item) => userStore.hasPermission(item.permiso)) }))
   .filter((seccion) => seccion.items.length))
 
-const badges = computed(() => ({ pendientes: pendientes.value, lotes: alertasLotes.value }))
+const badges = computed(() => ({
+  pendientes: pendientes.value,
+  lotes: alertasLotes.value,
+  reclamaciones: reclamacionesPendientes.value
+}))
 
 function totalBadges (seccion) {
   return seccion.items.reduce((suma, item) => suma + (badges.value[item.badge] ?? 0), 0)

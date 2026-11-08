@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AutorizarPorRuta;
+use App\Http\Middleware\ClaveTiendaWeb;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             AutorizarPorRuta::ALIAS => AutorizarPorRuta::class,
+            ClaveTiendaWeb::ALIAS => ClaveTiendaWeb::class,
         ]);
 
         // Autorizar ANTES de buscar el modelo de la ruta: si no, sin permiso

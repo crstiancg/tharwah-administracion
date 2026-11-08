@@ -74,6 +74,26 @@ class ArchivosService
         $this->eliminar($modelo->archivos()->get()->all());
     }
 
+    /**
+     * Sube un archivo suelto, sin galería ni orden: lo cita otro dato por su
+     * id (la imagen de un banner, una ficha técnica).
+     */
+    public function agregar(Model $modelo, UploadedFile $archivo, string $carpeta): Archivo
+    {
+        return $this->subir($modelo, $archivo, $carpeta, 0);
+    }
+
+    /**
+     * Borra los archivos del modelo que ya no se usan (los que no están en
+     * `$conservar`).
+     *
+     * @param  int[]  $conservar
+     */
+    public function eliminarExcepto(Model $modelo, array $conservar): void
+    {
+        $this->eliminar($modelo->archivos()->whereKeyNot($conservar)->get()->all());
+    }
+
     private function subir(Model $modelo, UploadedFile $archivo, string $carpeta, int $orden): Archivo
     {
         $ruta = $archivo->store($carpeta, self::DISCO);

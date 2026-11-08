@@ -36,6 +36,16 @@ return [
         'token' => env('APIS_NET_PE_TOKEN'),
     ],
 
+    // Tienda web (GET /api/publico/catalogo): la clave la manda el servidor
+    // de la web en X-Api-Key. Sin clave, el catálogo público queda apagado.
+    // sede_id: de qué sede salen precio y stock (sin definir, la primera).
+    // pocas_unidades: con este stock o menos la web dice "pocas unidades".
+    'tienda_web' => [
+        'key' => env('TIENDA_WEB_KEY'),
+        'sede_id' => env('TIENDA_WEB_SEDE_ID'),
+        'pocas_unidades' => env('TIENDA_WEB_POCAS_UNIDADES', 5),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

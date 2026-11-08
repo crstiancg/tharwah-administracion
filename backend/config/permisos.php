@@ -46,7 +46,8 @@ return [
         'colores.show' => ['colores.update'],
         'categorias.show' => ['categorias.update'],
         // El form de categorías lista las demás para elegir la categoría padre.
-        'categorias.index' => ['categorias.store', 'categorias.update', 'productos.store', 'productos.update', 'productos.index', 'ventas.store', 'ofertas.store', 'ofertas.update'],
+        // También la tienda web: describir categorías y filtrar productos por categoría.
+        'categorias.index' => ['categorias.store', 'categorias.update', 'productos.store', 'productos.update', 'productos.index', 'ventas.store', 'ofertas.store', 'ofertas.update', 'contenido-web.update', 'productos-web.index'],
         'marcas.show' => ['marcas.update'],
         'sedes.show' => ['sedes.update'],
         // Elegir sede: al asignarla a un usuario, al cambiarse de sede, al
@@ -56,8 +57,9 @@ return [
         // Quien ve la lista abre la ficha del producto (stock, lotes, movimientos).
         'productos.show' => ['productos.update', 'productos.index'],
         'ofertas.show' => ['ofertas.update'],
-        // El form de ofertas busca el producto al que se aplica.
-        'productos.index' => ['ofertas.store', 'ofertas.update'],
+        // El form de ofertas busca el producto al que se aplica (y el de la
+        // tienda web, los productos de cada banner del carrusel o campaña).
+        'productos.index' => ['ofertas.store', 'ofertas.update', 'contenido-web.update'],
         // El form de productos elige la marca, y la unidad y el color de
         // cada presentación; marca y color también filtran el punto de venta.
         'marcas.index' => ['productos.store', 'productos.update', 'productos.index', 'ventas.store', 'inventario.index'],
@@ -93,8 +95,9 @@ return [
         // Quien ve una cotización (o la lista de productos) la baja en Excel.
         'cotizaciones.excel' => ['cotizaciones.index', 'cotizaciones.show'],
         'productos.exportar' => ['productos.index'],
-        // El form de cotizaciones busca clientes y presentaciones.
-        'inventario.variantes' => ['inventario.entradas', 'inventario.salidas', 'inventario.ajustes', 'inventario.traslados', 'pedidos.store', 'pedidos.update', 'ventas.store', 'compras.store', 'cotizaciones.store', 'cotizaciones.update', 'ordenes-compra.store', 'ordenes-compra.update', 'inventario.index'],
+        // El form de cotizaciones busca clientes y presentaciones (y el de
+        // kits de la tienda web, las presentaciones de cada kit).
+        'inventario.variantes' => ['inventario.entradas', 'inventario.salidas', 'inventario.ajustes', 'inventario.traslados', 'pedidos.store', 'pedidos.update', 'ventas.store', 'compras.store', 'cotizaciones.store', 'cotizaciones.update', 'ordenes-compra.store', 'ordenes-compra.update', 'inventario.index', 'contenido-web.update'],
         // Autocompletar con RENIEC/SUNAT es parte de cargar un cliente.
         'clientes.consultar-documento' => ['clientes.store', 'clientes.update'],
         // A diferencia de los catálogos, quien ve la lista de pedidos puede
@@ -104,6 +107,17 @@ return [
         // Cobrar, devolver, mover caja o vender necesita saber si hay una abierta.
         'cajas.actual' => ['pedidos.pagos', 'pedidos.devoluciones', 'cajas.abrir', 'cajas.cerrar', 'cajas.movimientos', 'cajas.index', 'ventas.store'],
         'cajas.show' => ['cajas.index', 'cajas.cerrar'],
+        // Tienda web: quien redacta, publica o descarta ve la sección (y la
+        // lista); quien redacta sube las imágenes y fichas que usa.
+        'contenido-web.index' => ['contenido-web.show', 'contenido-web.update', 'contenido-web.publicar', 'contenido-web.descartar'],
+        'contenido-web.show' => ['contenido-web.update', 'contenido-web.publicar', 'contenido-web.descartar'],
+        'contenido-web.archivos' => ['contenido-web.update'],
+        'productos-web.index' => ['productos-web.show', 'productos-web.update', 'productos-web.publicar', 'productos-web.descartar'],
+        'productos-web.show' => ['productos-web.update', 'productos-web.publicar', 'productos-web.descartar'],
+        'productos-web.archivos' => ['productos-web.update'],
+        // Libro de reclamaciones: quien responde también ve la hoja y la lista.
+        'reclamaciones.index' => ['reclamaciones.show', 'reclamaciones.responder'],
+        'reclamaciones.show' => ['reclamaciones.responder'],
     ],
 
     // Para la descripción que genera permisos:sync: "Roles · Crear".
@@ -131,6 +145,9 @@ return [
         'ventas' => 'Punto de venta',
         'comprobantes' => 'Comprobantes electrónicos',
         'etiquetas' => 'Etiquetas',
+        'contenido-web' => 'Tienda web: secciones',
+        'productos-web' => 'Tienda web: productos',
+        'reclamaciones' => 'Libro de reclamaciones',
     ],
 
     'acciones' => [
@@ -178,6 +195,10 @@ return [
         'ventas' => 'Ver ventas',
         'productos' => 'Ver más vendidos',
         'inventario' => 'Ver inventario valorizado',
+        'archivos' => 'Subir imágenes y fichas',
+        'publicar' => 'Publicar en la web',
+        'descartar' => 'Descartar borrador',
+        'responder' => 'Responder',
     ],
 
 ];
