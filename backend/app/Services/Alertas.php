@@ -5,11 +5,13 @@ namespace App\Services;
 use App\Models\Cotizacion;
 use App\Models\Lote;
 use App\Models\Pedido;
+use App\Models\Reclamacion;
 use App\Models\Stock;
 use App\Models\User;
 use App\Support\Fechas;
 use App\Support\Permisos;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 
 /**
  * Lo que necesita atención en la sede del usuario: la campana del menú y el
@@ -28,13 +30,20 @@ class Alertas
      */
     public function para(User $user): array
     {
-        $sedeId = $user->sedeOperativa();
-        if (! $sedeId) {
-            return [];
-        }
-
         $alertas = [];
         $puede = fn (string $ruta) => Permisos::puede($user, $ruta);
+
+        // ── Libro de reclamaciones ──
+        // De toda la empresa (llegan por la web, no por sede): las ve quien puede responderlas.
+        if ($puede('reclamaciones.index') && $reclamaciones = $this->reclamaciones()) {
+            $alertas[] = $reclamaciones;
+        }
+
+        // Lo demás es de la sede del usuario (sin sede asignada, sólo lo de la empresa).
+        $sedeId = $user->sede_id;
+        if (! $sedeId) {
+            return $alertas;
+        }
 
         // ── Caja ──
         if ($puede('cajas.actual')) {
@@ -101,6 +110,34 @@ class Alertas
         }
 
         return $alertas;
+    }
+
+    /**
+     * Hojas sin responder, con la fecha límite más próxima (la de la más
+     * antigua). Urgente si a alguna le quedan pocos días o ya venció.
+     *
+     * @return array{clave: string, nivel: string, titulo: string, detalle: string, cantidad: int, to: string}|null
+     */
+    private function reclamaciones(): ?array
+    {
+        $pendientes = Reclamacion::query()->whereNull('respondido_at');
+        $cantidad = (clone $pendientes)->count();
+        if (! $cantidad) {
+            return null;
+        }
+
+        $limite = $pendientes->orderBy('created_at')->first()->fechaLimite();
+        $dias = (int) Fechas::hoy()->diffInDays(Carbon::parse($limite->toDateString()), false);
+        $fecha = $limite->format('d/m');
+
+        return $this->alerta('reclamaciones', $dias <= Reclamacion::DIAS_DE_AVISO ? 'critical' : 'warning',
+            $this->plural($cantidad, 'hoja de reclamación por responder', 'hojas de reclamación por responder'),
+            match (true) {
+                $dias < 0 => "Una venció el {$fecha}: respondela hoy.",
+                $dias === 0 => 'Una vence hoy: respondela antes de que termine el día.',
+                default => "La más próxima vence el {$fecha}. El plazo es de ".Reclamacion::DIAS_PARA_RESPONDER.' días hábiles.',
+            },
+            $cantidad, '/reclamaciones');
     }
 
     /**

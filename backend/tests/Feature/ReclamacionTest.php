@@ -84,6 +84,30 @@ class ReclamacionTest extends TestCase
         $this->assertStringContainsString(config('greenter.company.razonSocial'), $correo);
     }
 
+    public function test_avisa_en_el_dashboard_solo_a_quien_puede_verlas(): void
+    {
+        Carbon::setTestNow('2026-11-09 15:00:00'); // lunes; vence el 30/11
+        $this->presentar($this->hoja())->assertCreated();
+        $aviso = fn () => collect($this->getJson('/api/panel/alertas')->assertOk()->json('data'))->firstWhere('clave', 'reclamaciones');
+
+        $this->actuarCon();
+        $this->assertNull($aviso());
+
+        $this->actuarCon('reclamaciones.index');
+        $this->assertSame('warning', $aviso()['nivel']);
+        $this->assertSame('1 hoja de reclamación por responder', $aviso()['titulo']);
+        $this->assertStringContainsString('30/11', $aviso()['detalle']);
+        $this->assertSame('/reclamaciones', $aviso()['to']);
+
+        // Los últimos días, urgente.
+        Carbon::setTestNow('2026-11-27 15:00:00');
+        $this->assertSame('critical', $aviso()['nivel']);
+
+        // Respondida, el aviso se va.
+        Reclamacion::query()->update(['respuesta' => 'Le cambiamos el producto.', 'respondido_at' => now()]);
+        $this->assertNull($aviso());
+    }
+
     public function test_exige_lo_minimo_del_reglamento(): void
     {
         // Ni correo ni domicilio.

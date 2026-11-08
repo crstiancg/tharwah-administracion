@@ -37,6 +37,9 @@ class Reclamacion extends Model
     /** Días hábiles para responder (Reglamento del Libro de Reclamaciones; improrrogable). */
     public const DIAS_PARA_RESPONDER = 15;
 
+    /** Días antes de la fecha límite en que el aviso pasa a urgente (como el plazo en la lista). */
+    public const DIAS_DE_AVISO = 3;
+
     protected $table = 'reclamaciones';
 
     protected function casts(): array

@@ -96,7 +96,7 @@ class GuardarReclamacionRequest extends FormRequest
             'reclamacion.comprobante_tipo' => 'tipo de comprobante',
             'reclamacion.comprobante_numero' => 'número de comprobante',
             'reclamacion.descripcion_bien' => 'descripción',
-            'reclamacion.monto' => 'monto pagado',
+            'reclamacion.monto' => 'monto reclamado',
             'reclamacion.detalle' => 'detalle',
             'reclamacion.pedido' => 'pedido',
         ];
